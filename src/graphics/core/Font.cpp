@@ -7,7 +7,7 @@
 #include "Batch3D.hpp"
 #include "window/Camera.hpp"
 
-inline constexpr uint GLYPH_SIZE = 16;
+inline constexpr uint GLYPH_SIZE = 24;
 inline constexpr uint MAX_CODEPAGES = 10000; // idk ho many codepages unicode has
 inline constexpr glm::vec4 SHADOW_TINT(0.0f, 0.0f, 0.0f, 1.0f);
 

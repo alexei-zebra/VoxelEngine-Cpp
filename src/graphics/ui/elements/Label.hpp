@@ -35,7 +35,7 @@ namespace gui {
         wstringsupplier supplier = nullptr;
         
         /// @brief Lines interval multiplier
-        float lineInterval = 1.5f;
+        float lineInterval = 1.0f;
 
         /// @brief Vertical alignment (only when multiline is set to false)
         Align valign = Align::center;

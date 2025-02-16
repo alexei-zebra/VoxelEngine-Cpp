@@ -43,7 +43,7 @@ struct FontStylesScheme {
 class Font {
     int lineHeight;
     int yoffset;
-    int glyphInterval = 8;
+    int glyphInterval = 12;
     std::vector<std::unique_ptr<Texture>> pages;
 public:
     Font(std::vector<std::unique_ptr<Texture>> pages, int lineHeight, int yoffset);
