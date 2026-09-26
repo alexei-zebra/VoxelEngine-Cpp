@@ -68,6 +68,8 @@ Table of contents:
 - `normal` attribute for `tri` and `rect` VCM primitives
 - `lighting-mode` entity property
 - vca syntax highlighting
+- `cull-face` property for `tri` and `rect` VCM primitives
+- `graphics.enable-fog` setting
 
 ## New Functions
 
@@ -125,7 +127,7 @@ Table of contents:
 - ctypes.uint8
 - entities.def_solid
 - events.remove
-- file.remove_ext <undocumented>
+- file.remove_ext
 - gfx.text3d.get_entity
 - gfx.text3d.set_entity
 - gui.screenshot
@@ -189,6 +191,10 @@ New overloads:
 
 ## Fixes
 
+- [fix exception safety in util::stack_vector::push_back](https://github.com/MihailRis/voxelcore/commit/273682355a32827658568757a76830864249a12d)
+- [fix recursive iframe](https://github.com/MihailRis/voxelcore/commit/c3b50b5ab2ebc88719e25f8964d70a4f389e389f)
+- [fix infinite recursion on moveInto used to move to descendant node](https://github.com/MihailRis/voxelcore/commit/4f1411b005859a510fe8d8f1af8db9b848dd4454)
+- [fix camera exponentially shaking](https://github.com/MihailRis/voxelcore/commit/3de6d7f4025f310426a5111fa6ce047e190888f1)
 - [fix slow xml/vcm loading in Windows](https://github.com/MihailRis/voxelcore/pull/983)
 - [fix file.ext](https://github.com/MihailRis/voxelcore/commit/b9b17358a1576e740c4dcf7cf28e553b9d829db0)
 - [fix stack_vector](https://github.com/MihailRis/voxelcore/commit/1fbf16e3dcf145f322849b182be20bac1272a82b)
