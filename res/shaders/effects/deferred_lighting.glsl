@@ -31,7 +31,7 @@ vec4 effect() {
 #ifdef ENABLE_SHADOWS
     float shadow_mul = calc_shadow(modelpos, normal, length(pos));
     light *= shadow_mul;
-    rg *= min(1.0, shadow_mul + emission) + COLOR_TEMPERATURE_COMPENSATION;
+    rg *= min(1.0, shadow_mul + emission) * COLOR_TEMPERATURE_COMPENSATION;
     light *= 2.0;
 #endif
 
