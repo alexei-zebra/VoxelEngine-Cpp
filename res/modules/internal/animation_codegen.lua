@@ -15,11 +15,13 @@ local exclude_patters = {
 }
 
 --  TODO: replace with actual expression -> lua translator
-local function process_expression(src, memoised, ismul)
-    if ismul then
-        src = string.format("(%s) * intensity + (1.0 - intensity)", src)
-    else
-        src = string.format("(%s) * intensity", src)
+local function process_expression(src, memoised, ismul, iscurve)
+    if not iscurve then
+        if ismul then
+            src = string.format("(%s) * intensity + (1.0 - intensity)", src)
+        else
+            src = string.format("(%s) * intensity", src)
+        end
     end
 
     for i, pattern in ipairs(exclude_patters) do
@@ -284,7 +286,7 @@ function internals.compile_animation_track(raw_track, track_name)
     for name, curve in pairs(raw_track.curves) do
         context.curves[name] = load(string.format(
             "return function(kl, kr, t) return %s end",
-            process_expression(curve.func, context.memoised)
+            process_expression(curve.func, context.memoised, false, true)
         ), "<curve>", "t", env)()
     end
 
