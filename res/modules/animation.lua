@@ -21,8 +21,10 @@ local function bezier_interpolation(k0, k1, t)
     local u = t
 
     for i=1,8 do
-        local x = bezier(k0.frame, k0.rx, k1.lx, k1.frame, u)
-        local dx = bezier_derivative(k0.frame, k0.rx, k1.lx, k1.frame, u)
+        local x = bezier(
+            k0.frame, k0.rx + k0.frame, k1.lx + k1.frame, k1.frame, u)
+        local dx = bezier_derivative(
+            k0.frame, k0.rx + k0.frame, k1.lx + k1.frame, k1.frame, u)
 
         if math.abs(dx) < 1e-8 then
             break
