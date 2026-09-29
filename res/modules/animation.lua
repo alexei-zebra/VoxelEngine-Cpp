@@ -36,7 +36,7 @@ local function bezier_interpolation(k0, k1, t)
         if u > 1 then u = 1 end
     end
 
-    return bezier(k0.value, k0.ry, k1.ly, k1.value, u)
+    return bezier(k0.value, k0.ry + k0.value, k1.ly + k1.value, k1.value, u)
 end
 
 local this = {
