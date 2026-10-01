@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <initializer_list>
 #include <stdexcept>
@@ -74,6 +75,7 @@ namespace util {
         }
 
         void pop_back() noexcept {
+            assert(!empty() && "pop_back() called on empty stack_vector");
             if (size_ > 0) {
                 data_.ptr()[size_ - 1].~T();
                 --size_;
@@ -110,18 +112,22 @@ namespace util {
         }
 
         T& front() {
+            assert(!empty() && "front() called on empty stack_vector");
             return data_.ptr()[0];
         }
 
         T& back() {
+            assert(!empty() && "back() called on empty stack_vector");
             return data_.ptr()[size_ - 1];
         }
 
         const T& front() const {
+            assert(!empty() && "front() called on empty stack_vector");
             return data_.ptr()[0];
         }
 
         const T& back() const {
+            assert(!empty() && "back() called on empty stack_vector");
             return data_.ptr()[size_ - 1];
         }
 
