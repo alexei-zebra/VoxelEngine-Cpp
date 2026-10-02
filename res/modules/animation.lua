@@ -135,6 +135,9 @@ function internals.on_animation_frame()
             if track_info.__timer > track.duration then
                 table.remove(playing_tracks, i)
             else
+                if track_info.target.reset_pose then
+                    track_info.target:reset_pose()
+                end
                 track.func(track_info.target, track_info.__timer)
             end
         end

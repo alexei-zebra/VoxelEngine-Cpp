@@ -247,7 +247,7 @@ end
 
 local function codegen_object_target(raw_track, context)
     local code = "\n if target.set_pos then\n"
-    code = code .. "  local dst = DST\n"
+    code = code .. "  local dst = mat4.idt()\n"
     local lineset = raw_track.linesets[""]
     if not lineset then
         return ""
@@ -302,7 +302,7 @@ function internals.compile_animation_track(raw_track, track_name)
         code = memoised_code .. "\n" .. code
     end
 
-    local src = "return function(target, t, intensity, m)\n m = m or 1\n"
+    local src = "return function(target, t, intensity, m)\n m = m or 1\n intensity = intensity or 1.0\n"
         .. code .. "\nend"
 
     if animation.TRACE_CODEGEN then
