@@ -1,4 +1,4 @@
-# 0.32 - 20xx.xx.xx
+# 0.32 - 2026.10.03
 
 [Documentation](https://github.com/MihailRis/VoxelEngine-Cpp/tree/release-0.32/doc/en/main-page.md) for 0.32
 
@@ -16,7 +16,7 @@ Table of contents:
 - animation
 - semi-transparent entities
 - client-side --script, --test support
-- environments
+- environments (in-development)
 - translators
 - VCA format
 
