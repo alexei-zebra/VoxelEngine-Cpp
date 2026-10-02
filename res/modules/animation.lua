@@ -21,8 +21,10 @@ local function bezier_interpolation(k0, k1, t)
     local u = t
 
     for i=1,8 do
-        local x = bezier(k0.frame, k0.rx, k1.lx, k1.frame, u)
-        local dx = bezier_derivative(k0.frame, k0.rx, k1.lx, k1.frame, u)
+        local x = bezier(
+            k0.frame, k0.rx + k0.frame, k1.lx + k1.frame, k1.frame, u)
+        local dx = bezier_derivative(
+            k0.frame, k0.rx + k0.frame, k1.lx + k1.frame, k1.frame, u)
 
         if math.abs(dx) < 1e-8 then
             break
@@ -34,7 +36,7 @@ local function bezier_interpolation(k0, k1, t)
         if u > 1 then u = 1 end
     end
 
-    return bezier(k0.value, k0.ry, k1.ly, k1.value, u)
+    return bezier(k0.value, k0.ry + k0.value, k1.ly + k1.value, k1.value, u)
 end
 
 local this = {
@@ -133,6 +135,9 @@ function internals.on_animation_frame()
             if track_info.__timer > track.duration then
                 table.remove(playing_tracks, i)
             else
+                if track_info.target.reset_pose then
+                    track_info.target:reset_pose()
+                end
                 track.func(track_info.target, track_info.__timer)
             end
         end

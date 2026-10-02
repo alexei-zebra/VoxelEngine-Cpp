@@ -12,7 +12,7 @@ function create_state(name, track_id, max_intencity)
         fade_time = 0.0,
         fade_timer = 0.0,
         fade_in = false,
-        max_intencity = max_intencity,
+        max_intencity = max_intencity or 1.0,
     }
 end
 
@@ -25,14 +25,14 @@ function set_state(name, fade_time)
     end
     if current_state then
         current_state.fade_in = false
-        current_state.fade_time = fade_time
+        current_state.fade_time = fade_time or 0.0
         current_state.fade_timer = 0.0
     end
     current_state = state
     if state then
         state.timer = 0.0
         state.fade_in = true
-        state.fade_time = fade_time
+        state.fade_time = fade_time or 0.0
         state.fade_timer = 0.0
     end
 end
