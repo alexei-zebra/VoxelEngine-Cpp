@@ -25,14 +25,18 @@ float calc_shadow(
     projCoords.z -= 0.00001 / u_shadowsRes + bias;
 
     float shadow = 0.0;
-    // 3x3 kernel
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            vec3 offset = vec3(x, y, -(abs(x) + abs(y)) * 0.8) * step * 1.0 * u_shadowsSoftness;
-            shadow += texture(shadowsMap, projCoords + offset);
+    if (dot(realnormal, u_sunDir) < 0.0) {
+        // 3x3 kernel
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                vec3 offset = vec3(x, y, -(abs(x) + abs(y)) * 0.8) * step * 1.0 * u_shadowsSoftness;
+                shadow += texture(shadowsMap, projCoords + offset);
+            }
         }
+        shadow /= 9.0;
+    } else {
+        shadow = 0.0;
     }
-    shadow /= 9.0;
     return shadow;
 }
 
