@@ -30,13 +30,13 @@ sudo make install
 
 ```sh
 su -
-apt-get install entt-devel libglfw3-devel libGLEW-devel libglm-devel libpng-devel libvorbis-devel libopenal-devel libluajit-devel libstdc++13-devel-static libcurl-devel libfreetype-devel
+apt-get install entt-devel libglfw3-devel libGLEW-devel libglm-devel libpng-devel libvorbis-devel libopenal-devel libluajit-devel libstdc++13-devel-static libcurl-devel libfreetype-devel libssl-devel
 ```
 
 #### Debian based distros
 
 ```sh
-sudo apt install libglfw3 libglfw3-dev libglew-dev libglm-dev libpng-dev libopenal-dev libluajit-5.1-dev libvorbis-dev libcurl4-openssl-dev libfreetype6-dev
+sudo apt install libglfw3 libglfw3-dev libglew-dev libglm-dev libpng-dev libopenal-dev libluajit-5.1-dev libvorbis-dev libcurl4-openssl-dev libssl-dev libfreetype6-dev
 ```
 
 > [!TIP]
@@ -50,13 +50,13 @@ sudo apt install libglfw3 libglfw3-dev libglew-dev libglm-dev libpng-dev libopen
 #### RHEL based distros
 
 ```sh
-sudo dnf install glfw-devel glew-devel glm-devel libpng-devel libvorbis-devel openal-soft-devel luajit-devel libcurl-devel libfreetype-devel
+sudo dnf install glfw-devel glew-devel glm-devel libpng-devel libvorbis-devel openal-soft-devel luajit-devel libcurl-devel libfreetype-devel openssl-devel
 ```
 
 #### Arch based distros
 
 ```sh
-sudo pacman -S glfw glew glm libpng libvorbis openal luajit curl freetype2
+sudo pacman -S glfw glew glm libpng libvorbis openal luajit curl freetype2 openssl
 ```
 
 ### Building engine with CMake
