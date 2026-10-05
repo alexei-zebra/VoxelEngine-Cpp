@@ -18,12 +18,12 @@ local curve_to_interp = {
 
 local function parse_configure(raw_track, node)
     if node.fps then
-        raw_track.fps = node.fps
+        raw_track.fps = tonumber(node.fps)
     end
     if node.frames then
-        raw_track.duration = node.frames / (node.fps or DEFAULT_FPS)
+        raw_track.duration = tonumber(node.frames) / (tonumber(raw_track.fps) or DEFAULT_FPS)
     elseif node.duration then
-        raw_track.duration = node.duration
+        raw_track.duration = tonumber(node.duration)
     end
     raw_track.rotation_order = string.upper(node["rotation-order"] or "XYZ")
 end
