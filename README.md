@@ -23,27 +23,17 @@ cmake -DCMAKE_BUILD_TYPE=Release -DENTT_INSTALL=ON ..
 sudo make install
 ```
 
-> [!WARNING]
-> If you are using ALT Linux, do **not** use this EnTT installation method.
-
 #### ALT Linux based distros
 
 ```sh
 su -
-apt-get install entt-devel libglfw3-devel libGLEW-devel libglm-devel libpng-devel libvorbis-devel libopenal-devel libluajit-devel libstdc++13-devel-static libcurl-devel libfreetype-devel libssl-devel
+apt-get install libglfw3-devel libGLEW-devel libglm-devel libpng-devel libvorbis-devel libopenal-devel libluajit-devel libstdc++13-devel-static libcurl-devel libfreetype-devel libssl-devel
 ```
 
 #### Debian based distros
 
 ```sh
 sudo apt install libglfw3 libglfw3-dev libglew-dev libglm-dev libpng-dev libopenal-dev libluajit-5.1-dev libvorbis-dev libcurl4-openssl-dev libssl-dev libfreetype6-dev
-
-#### Wayland (optional, enabled by default on Linux)
-
-The native Wayland backend needs `wayland-client`, `wayland-egl`,
-`wayland-scanner`, `wayland-protocols`, `libxkbcommon` and EGL. Build with
-`-DVOXELENGINE_WAYLAND=OFF` to fall back to GLFW; `libsystemd` (sd-bus) is
-picked up automatically for the desktop button layout.
 ```
 
 > [!TIP]
@@ -65,6 +55,12 @@ sudo dnf install glfw-devel glew-devel glm-devel libpng-devel libvorbis-devel op
 ```sh
 sudo pacman -S glfw glew glm libpng libvorbis openal luajit curl freetype2 openssl
 ```
+
+#### Wayland
+
+On Linux the engine draws the window frame itself and needs `wayland-client`,
+`wayland-egl`, `wayland-scanner`, `wayland-protocols`, `libxkbcommon` and EGL.
+Build with `-DVOXELENGINE_WAYLAND=OFF` to fall back to GLFW.
 
 ### Building engine with CMake
 
