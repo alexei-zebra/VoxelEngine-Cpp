@@ -21,8 +21,18 @@ bool frame_start_move(GLFWwindow* window);
 /// @brief Ask the window manager to start resizing the window
 bool frame_start_resize(GLFWwindow* window, int edges);
 
+/// @brief Called when the windowing system wants the content redrawn
+using FrameRefresh = void (*)(void*);
+
 /// @brief Hide the caption of the native frame, keeping the rest of it
 /// @param hitTest tells what the pointer is over
-void frame_setup_native(GLFWwindow* window, frame::Hit (*hitTest)(void*, int, int), void* userdata);
+/// @param refresh draws a frame when the system blocks the main loop
+void frame_setup_native(
+    GLFWwindow* window,
+    frame::Hit (*hitTest)(void*, int, int),
+    void* hitTestData,
+    FrameRefresh refresh,
+    void* refreshData
+);
 
 /// @}

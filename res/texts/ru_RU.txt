@@ -121,7 +121,7 @@ settings.Microphone access=Доступ к микрофону
 settings.Narrow Window Bar=Узкая шапка окна
 settings.Live Window Resize=Живой ресайз окна
 settings.display.compact-window-bar.tooltip=Шапка окна высотой 24 px вместо 48 px
-settings.display.live-resize.tooltip=Перерисовывать содержимое окна при изменении размера (выключено — последний кадр растягивается)
+settings.display.live-resize.tooltip=Перерисовывать окно при изменении размера (выключено — показывать последний кадр)
 
 # Управление
 chunks.reload=Перезагрузить Чанки

@@ -297,7 +297,9 @@ public:
           window(window),
           engineFrame(engineFrame) {
         if (engineFrame) {
-            frame_setup_native(window, &frame_hit_test, this);
+            frame_setup_native(
+                window, &frame_hit_test, this, &frame_refresh_thunk, this
+            );
         }
     }
 
@@ -373,6 +375,33 @@ public:
 
     bool hasEngineFrame() const override {
         return engineFrame;
+    }
+
+    /// @brief Whether the window is redrawn while it is being resized
+    bool isLiveResizeEnabled() const {
+        return settings == nullptr || settings->liveResize.get();
+    }
+
+    /// @brief Draws a frame for the windowing system
+    ///
+    /// Windows runs a modal loop while a border is dragged and blocks the main
+    /// loop inside it, so the only frames drawn during such a resize are the
+    /// ones asked for from the message loop.
+    void drawRefreshFrame() {
+        if (!isLiveResizeEnabled()) {
+            return;
+        }
+        const auto& refresh = getRefreshHandler();
+        if (!refresh) {
+            return;
+        }
+        inRefreshCallback = true;
+        refresh();
+        inRefreshCallback = false;
+    }
+
+    static void frame_refresh_thunk(void* userdata) {
+        static_cast<GLFWWindow*>(userdata)->drawRefreshFrame();
     }
 
     /// @brief Set while a frame is drawn from the refresh callback
@@ -758,7 +787,9 @@ private:
         if (engineFrame) {
             // GLFW rewrites the window style on every mode change and drops
             // the thick frame the native resize border and snapping need
-            frame_setup_native(window, &frame_hit_test, this);
+            frame_setup_native(
+                window, &frame_hit_test, this, &frame_refresh_thunk, this
+            );
             return;
         }
         glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
@@ -922,12 +953,7 @@ static void create_standard_cursors() {
 static void refresh_callback(GLFWwindow* window) {
     auto handler = static_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
     handler->setShouldRefresh();
-    const auto& refresh = handler->getRefreshHandler();
-    if (refresh) {
-        handler->inRefreshCallback = true;
-        refresh();
-        handler->inRefreshCallback = false;
-    }
+    handler->drawRefreshFrame();
 }
 
 static void setup_callbacks(GLFWwindow* window) {

@@ -169,10 +169,31 @@ namespace {
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 
+#include "debug/Logger.hpp"
+
+static debug::Logger frame_logger("window-frame");
+
 namespace {
     WNDPROC original_window_proc = nullptr;
     frame::Hit (*hit_test_callback)(void*, int, int) = nullptr;
     void* hit_test_userdata = nullptr;
+    FrameRefresh refresh_callback = nullptr;
+    void* refresh_userdata = nullptr;
+
+    /// @brief Keeps the window style the engine frame relies on
+    ///
+    /// GLFW rewrites the style on every window mode change, and a lost thick
+    /// frame takes the native resize border and the window snapping with it.
+    void apply_engine_style(HWND hwnd) {
+        const LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+        const LONG_PTR wanted =
+            (style | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
+             WS_SYSMENU) &
+            ~WS_CAPTION;
+        if (wanted != style) {
+            SetWindowLongPtr(hwnd, GWL_STYLE, wanted);
+        }
+    }
 
     LRESULT CALLBACK frame_window_proc(
         HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
@@ -190,7 +211,21 @@ namespace {
             case WM_NCACTIVATE:
                 // and it is not repainted when the window is activated
                 return TRUE;
+            case WM_SIZE: {
+                // Windows runs its own modal loop while a border is dragged
+                // and never sends WM_PAINT there, so WM_SIZE is the only
+                // place to draw a frame from during such a resize.
+                const LRESULT result = CallWindowProc(
+                    original_window_proc, hwnd, message, wparam, lparam
+                );
+                if (refresh_callback != nullptr) {
+                    refresh_callback(refresh_userdata);
+                }
+                return result;
+            }
             case WM_NCHITTEST: {
+                // the style may have been rewritten since the last setup
+                apply_engine_style(hwnd);
                 if (hit_test_callback == nullptr) {
                     break;
                 }
@@ -261,7 +296,9 @@ bool frame_start_resize(GLFWwindow* window, int edges) {
 void frame_setup_native(
     GLFWwindow* window,
     frame::Hit (*hitTest)(void*, int, int),
-    void* userdata
+    void* hitTestData,
+    FrameRefresh refresh,
+    void* refreshData
 ) {
 #if defined(_WIN32)
     HWND hwnd = glfwGetWin32Window(window);
@@ -269,14 +306,13 @@ void frame_setup_native(
         return;
     }
     hit_test_callback = hitTest;
-    hit_test_userdata = userdata;
+    hit_test_userdata = hitTestData;
+    refresh_callback = refresh;
+    refresh_userdata = refreshData;
     // The native frame stays: its thick frame is what gives the window the
     // resize border, the shadow, the animations and the snap layouts. Only
     // the caption is hidden, and the client area covers the whole window.
-    LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
-    style |= WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
-    style &= ~WS_CAPTION;
-    SetWindowLongPtr(hwnd, GWL_STYLE, style);
+    apply_engine_style(hwnd);
     // Only subclass once: storing our own procedure as the original one
     // would send every unhandled message back into it, forever.
     const LONG_PTR current = GetWindowLongPtr(hwnd, GWLP_WNDPROC);
@@ -285,6 +321,9 @@ void frame_setup_native(
         SetWindowLongPtr(
             hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(frame_window_proc)
         );
+        frame_logger.info() << "window frame: subclass installed";
+    } else {
+        frame_logger.info() << "window frame: subclass was ours";
     }
     SetWindowPos(
         hwnd,
@@ -298,6 +337,8 @@ void frame_setup_native(
 #else
     (void)window;
     (void)hitTest;
-    (void)userdata;
+    (void)hitTestData;
+    (void)refresh;
+    (void)refreshData;
 #endif
 }

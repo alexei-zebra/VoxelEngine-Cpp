@@ -73,14 +73,12 @@ function on_open()
             "display.compact-window-bar.tooltip"
         )
     end
-    -- live rendering only has the cached frame as its alternative, which is
-    -- what the native wayland backend does
-    if app.get_window_backend() == "wayland" then
-        create_checkbox(
-            "display.live-resize", "Live Window Resize",
-            "display.live-resize.tooltip"
-        )
-    end
+    -- every backend has an alternative to redrawing during a resize: the
+    -- cached frame on wayland, the frame the system stretches elsewhere
+    create_checkbox(
+        "display.live-resize", "Live Window Resize",
+        "display.live-resize.tooltip"
+    )
 
     create_checkbox("camera.shaking", "Camera Shaking")
     create_checkbox("camera.inertia", "Camera Inertia")
