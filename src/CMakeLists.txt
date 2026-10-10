@@ -116,6 +116,21 @@ set(VOXEL_COMPILE_OPTIONS
            -Wduplicated-cond
            >)
 
+# Everything the engine sources and their public headers include: the backends
+# compile against the same surface, and a missing include directory shows up as
+# a build failure only on the platforms that keep the library outside the
+# default include path.
+add_library(VoxelCoreInterface INTERFACE)
+
+target_include_directories(VoxelCoreInterface INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(VoxelCoreInterface INTERFACE
+    glfw
+    GLEW::GLEW
+    OpenGL::GL
+    glm::glm)
+
 option(VOXELCORE_WAYLAND "Build the native Wayland window backend" ON)
 
 add_subdirectory(window/detail)

@@ -60,8 +60,7 @@ function(voxel_add_wayland_backend)
 
     add_library(VoxelWayland STATIC ${wayland_sources} ${WAYLAND_SOURCES})
 
-    target_include_directories(VoxelWayland
-        PRIVATE ${CMAKE_SOURCE_DIR}/src ${WAYLAND_GENERATED})
+    target_include_directories(VoxelWayland PRIVATE ${WAYLAND_GENERATED})
 
     target_compile_options(VoxelWayland PRIVATE ${VOXEL_COMPILE_OPTIONS})
 
@@ -71,14 +70,11 @@ function(voxel_add_wayland_backend)
     target_link_libraries(
         VoxelWayland
         PRIVATE VoxelWindowBase
+                VoxelCoreInterface
                 PkgConfig::wayland-client
                 PkgConfig::xkbcommon
                 PkgConfig::egl
-                ${WAYLAND_EGL_LIBRARY}
-                glfw
-                OpenGL::GL
-                GLEW::GLEW
-                glm::glm)
+                ${WAYLAND_EGL_LIBRARY})
 
     if(libsystemd_FOUND)
         target_compile_definitions(VoxelWayland PRIVATE VOXELCORE_SDBUS=1)
