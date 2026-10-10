@@ -172,8 +172,6 @@ static void seat_capabilities(void*, wl_seat* seat, uint32_t capabilities) {
         listener.axis_source = ignore_event<>;
         listener.axis_stop = ignore_event<>;
         listener.axis_discrete = ignore_event<>;
-        listener.axis_value120 = ignore_event<>;
-        listener.axis_relative_direction = ignore_event<>;
         return listener;
     }();
 
@@ -303,6 +301,10 @@ void registry_global(
         }();
         xdg_wm_base_add_listener(state.wmBase, &listener, nullptr);
     } else if (strcmp(interface, wl_seat_interface.name) == 0) {
+        // A pointer inherits the seat version, so the pointer listener only
+        // has to cover the events of version 7 and below. Version 8 adds
+        // axis_value120 and version 9 axis_relative_direction, whose members
+        // do not exist in the wayland 1.20 headers either.
         state.seat = static_cast<wl_seat*>(wl_registry_bind(
             registry, name, &wl_seat_interface, std::min(version, 7u)
         ));
