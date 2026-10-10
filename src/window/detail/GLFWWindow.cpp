@@ -56,6 +56,16 @@ static bool use_engine_frame() {
 #endif
 }
 
+/// @brief Whether the platform lets the client place its own window
+static bool can_place_window() {
+#if GLFW_VERSION_MAJOR > 3 || \
+    (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+    return glfwGetPlatform() != GLFW_PLATFORM_WAYLAND;
+#else
+    return true;
+#endif
+}
+
 static std::unordered_set<std::string> supported_gl_extensions;
 static void window_size_callback(GLFWwindow* window, int width, int height);
 
@@ -980,6 +990,22 @@ std::tuple<
         glfwTerminate();
         return {nullptr, nullptr};
     }
+    if (can_place_window()) {
+        int areaX = 0, areaY = 0, areaWidth = 0, areaHeight = 0;
+        glfwGetMonitorWorkarea(
+            glfwGetPrimaryMonitor(),
+            &areaX,
+            &areaY,
+            &areaWidth,
+            &areaHeight
+        );
+        glfwSetWindowPos(
+            window,
+            areaX + (areaWidth - width) / 2,
+            areaY + (areaHeight - height) / 2
+        );
+    }
+
     glfwMakeContextCurrent(window);
 
     glewExperimental = GL_TRUE;

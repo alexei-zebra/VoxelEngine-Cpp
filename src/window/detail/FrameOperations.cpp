@@ -277,9 +277,15 @@ void frame_setup_native(
     style |= WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
     style &= ~WS_CAPTION;
     SetWindowLongPtr(hwnd, GWL_STYLE, style);
-    original_window_proc = reinterpret_cast<WNDPROC>(SetWindowLongPtr(
-        hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(frame_window_proc)
-    ));
+    // Only subclass once: storing our own procedure as the original one
+    // would send every unhandled message back into it, forever.
+    const LONG_PTR current = GetWindowLongPtr(hwnd, GWLP_WNDPROC);
+    if (current != reinterpret_cast<LONG_PTR>(frame_window_proc)) {
+        original_window_proc = reinterpret_cast<WNDPROC>(current);
+        SetWindowLongPtr(
+            hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(frame_window_proc)
+        );
+    }
     SetWindowPos(
         hwnd,
         nullptr,
