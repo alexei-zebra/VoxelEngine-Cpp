@@ -4,9 +4,12 @@ file(GLOB_RECURSE headers ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
 file(GLOB_RECURSE sources ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 
-file(GLOB_RECURSE wayland_sources
+# The window backends are separate libraries: the engine only talks to the
+# Window/Input interfaces and to the factories in detail/WindowBackends.hpp
+file(GLOB_RECURSE backend_sources
+     ${CMAKE_CURRENT_SOURCE_DIR}/window/detail/*.cpp
      ${CMAKE_CURRENT_SOURCE_DIR}/window/wayland/*.cpp)
-list(REMOVE_ITEM sources ${wayland_sources})
+list(REMOVE_ITEM sources ${backend_sources})
 
 add_library(VoxelCoreSrc STATIC ${sources} ${headers})
 
@@ -76,97 +79,8 @@ endif()
 
 target_include_directories(VoxelCoreSrc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-option(VOXELCORE_WAYLAND "Build the native Wayland window backend" ON)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND VOXELCORE_WAYLAND)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(wayland-client IMPORTED_TARGET wayland-client)
-    pkg_check_modules(xkbcommon IMPORTED_TARGET xkbcommon)
-    pkg_check_modules(egl IMPORTED_TARGET egl)
-    find_library(WAYLAND_EGL_LIBRARY NAMES wayland-egl libwayland-egl.so.1)
-    find_program(WAYLAND_SCANNER wayland-scanner)
-    pkg_check_modules(libsystemd IMPORTED_TARGET libsystemd)
-
-    if(NOT wayland-client_FOUND OR NOT xkbcommon_FOUND OR NOT egl_FOUND
-       OR NOT WAYLAND_EGL_LIBRARY OR NOT WAYLAND_SCANNER)
-        message(STATUS "Wayland backend is off: dependencies are not found")
-    else()
-        set(WAYLAND_PROTOCOLS ${CMAKE_CURRENT_SOURCE_DIR}/window/wayland/protocols)
-        set(WAYLAND_GENERATED ${CMAKE_CURRENT_BINARY_DIR}/wayland-protocols)
-        file(MAKE_DIRECTORY ${WAYLAND_GENERATED})
-        set(WAYLAND_SOURCES)
-
-        function(voxel_wayland_protocol XML NAME)
-            add_custom_command(
-                OUTPUT ${WAYLAND_GENERATED}/${NAME}-client-protocol.h
-                       ${WAYLAND_GENERATED}/${NAME}-protocol.c
-                COMMAND ${WAYLAND_SCANNER} client-header
-                        ${WAYLAND_PROTOCOLS}/${XML}
-                        ${WAYLAND_GENERATED}/${NAME}-client-protocol.h
-                COMMAND ${WAYLAND_SCANNER} private-code
-                        ${WAYLAND_PROTOCOLS}/${XML}
-                        ${WAYLAND_GENERATED}/${NAME}-protocol.c
-                DEPENDS ${WAYLAND_PROTOCOLS}/${XML}
-                VERBATIM)
-            set(WAYLAND_SOURCES ${WAYLAND_SOURCES}
-                                ${WAYLAND_GENERATED}/${NAME}-protocol.c
-                PARENT_SCOPE)
-        endfunction()
-
-        voxel_wayland_protocol(xdg-shell.xml xdg-shell)
-        voxel_wayland_protocol(cursor-shape-v1.xml cursor-shape-v1)
-        voxel_wayland_protocol(idle-inhibit-unstable-v1.xml
-                               idle-inhibit-unstable-v1)
-        voxel_wayland_protocol(pointer-constraints-unstable-v1.xml
-                               pointer-constraints-unstable-v1)
-        voxel_wayland_protocol(relative-pointer-unstable-v1.xml
-                               relative-pointer-unstable-v1)
-        voxel_wayland_protocol(xdg-decoration-unstable-v1.xml
-                               xdg-decoration-unstable-v1)
-        # tablet is referenced by cursor-shape-v1
-        voxel_wayland_protocol(tablet-unstable-v2.xml tablet-unstable-v2)
-
-        target_sources(
-            VoxelCoreSrc PRIVATE ${WAYLAND_SOURCES} ${wayland_sources})
-        target_include_directories(VoxelCoreSrc PRIVATE ${WAYLAND_GENERATED})
-        target_compile_definitions(VoxelCoreSrc PRIVATE VOXELCORE_WAYLAND=1)
-        if(libsystemd_FOUND)
-            target_compile_definitions(VoxelCoreSrc PUBLIC VOXELCORE_SDBUS=1)
-            target_link_libraries(VoxelCoreSrc PRIVATE PkgConfig::libsystemd)
-            message(STATUS "Wayland backend: sd-bus settings are on")
-        else()
-            message(STATUS "Wayland backend: sd-bus settings are off")
-        endif()
-        target_link_libraries(
-            VoxelCoreSrc
-            PRIVATE PkgConfig::wayland-client
-                    PkgConfig::xkbcommon
-                    PkgConfig::egl
-                    ${WAYLAND_EGL_LIBRARY})
-        message(STATUS "Wayland backend is on")
-    endif()
-endif()
-
-target_link_libraries(
-    VoxelCoreSrc
-    PRIVATE glfw
-            OpenGL::GL
-            GLEW::GLEW
-            ZLIB::ZLIB
-            PNG::PNG
-            CURL::libcurl
-            OpenSSL::Crypto
-            OpenAL::OpenAL
-            Vorbis::vorbis
-            Vorbis::vorbisfile
-            Freetype::Freetype
-    PUBLIC luajit::luajit
-           glm::glm # Need public for src/delegates.hpp, which including to
-                    # main.cpp
-)
-
-target_compile_options(
-    VoxelCoreSrc
-    PUBLIC $<$<CXX_COMPILER_ID:MSVC>:
+set(VOXEL_COMPILE_OPTIONS
+    $<$<CXX_COMPILER_ID:MSVC>:
            /utf-8
            /MP
            /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR
@@ -201,6 +115,38 @@ target_compile_options(
            -Wduplicated-branches
            -Wduplicated-cond
            >)
+
+option(VOXELCORE_WAYLAND "Build the native Wayland window backend" ON)
+
+add_subdirectory(window/detail)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND VOXELCORE_WAYLAND)
+    add_subdirectory(window/wayland)
+endif()
+
+target_link_libraries(
+    VoxelCoreSrc
+    PRIVATE VoxelGLFW
+            glfw
+            OpenGL::GL
+            GLEW::GLEW
+            ZLIB::ZLIB
+            PNG::PNG
+            CURL::libcurl
+            OpenSSL::Crypto
+            OpenAL::OpenAL
+            Vorbis::vorbis
+            Vorbis::vorbisfile
+            Freetype::Freetype
+    PUBLIC luajit::luajit
+           glm::glm # Need public for src/delegates.hpp, which including to
+                    # main.cpp
+)
+
+if(TARGET VoxelWayland)
+    target_link_libraries(VoxelCoreSrc PRIVATE VoxelWayland)
+endif()
+
+target_compile_options(VoxelCoreSrc PUBLIC ${VOXEL_COMPILE_OPTIONS})
 
 target_link_options(
     VoxelCoreSrc
