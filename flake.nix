@@ -56,7 +56,7 @@
 
           installPhase = ''
             mkdir -p $out/bin
-            cp VoxelEngine $out/bin/
+            cp VoxelCore $out/bin/
           '';
         };
       in
@@ -64,7 +64,7 @@
         packages.default = voxel-core;
         apps.default = {
           type = "app";
-          program = "${voxel-core}/bin/VoxelEngine";
+          program = "${voxel-core}/bin/VoxelCore";
         };
       }
     );
