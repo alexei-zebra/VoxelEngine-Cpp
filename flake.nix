@@ -64,7 +64,7 @@
         packages.default = voxel-core;
         apps.default = {
           type = "app";
-          program = "${voxel-core}/bin/VoxelCore";
+          program = "${voxel-core}/bin/VoxelEngine";
         };
       }
     );
