@@ -56,7 +56,6 @@ SettingsHandler::SettingsHandler(EngineSettings& settings) {
     builder.add("window-mode", &settings.display.windowMode);
     builder.add("adaptive-menu-fps", &settings.display.adaptiveFpsInMenu);
     builder.add("compact-window-bar", &settings.display.compactWindowBar);
-    builder.add("simple-window", &settings.display.simpleWindow);
     builder.add("live-resize", &settings.display.liveResize);
 
     builder.addSection("camera");

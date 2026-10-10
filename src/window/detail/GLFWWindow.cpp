@@ -307,7 +307,7 @@ public:
     void swapBuffers() override {
         glfwSwapBuffers(window);
         resetScissor();
-        if (framerate > 0) {
+        if (framerate > 0 && !inRefreshCallback) {
             auto elapsedTime = time() - prevSwap;
             auto frameTime = 1.0 / framerate;
             if (elapsedTime < frameTime) {
@@ -360,6 +360,13 @@ public:
     int getDecorationHoveredButton() const override {
         return hoveredButton;
     }
+
+    bool hasEngineFrame() const override {
+        return engineFrame;
+    }
+
+    /// @brief Set while a frame is drawn from the refresh callback
+    bool inRefreshCallback = false;
 
     bool ownsCursor() const override {
         return frameCursorActive;
@@ -739,8 +746,9 @@ private:
 
     void applyDecoration() {
         if (engineFrame) {
-            // frame_setup_native() owns the window style, GLFW would drop the
-            // thick frame the native resize border and snapping need
+            // GLFW rewrites the window style on every mode change and drops
+            // the thick frame the native resize border and snapping need
+            frame_setup_native(window, &frame_hit_test, this);
             return;
         }
         glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
@@ -904,6 +912,12 @@ static void create_standard_cursors() {
 static void refresh_callback(GLFWwindow* window) {
     auto handler = static_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
     handler->setShouldRefresh();
+    const auto& refresh = handler->getRefreshHandler();
+    if (refresh) {
+        handler->inRefreshCallback = true;
+        refresh();
+        handler->inRefreshCallback = false;
+    }
 }
 
 static void setup_callbacks(GLFWwindow* window) {

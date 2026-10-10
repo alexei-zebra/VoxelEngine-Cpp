@@ -40,9 +40,6 @@ void draw_window_bar(Engine& engine) {
     }
     auto* batch = engine.getGUI().getBatch2D();
     auto font = engine.requireAssets().getShared<Font>(BAR_FONT);
-    if (font == nullptr) {
-        return;
-    }
     const auto size = window.getSize();
     const float barHeight = static_cast<float>(height);
 
@@ -81,30 +78,35 @@ void draw_window_bar(Engine& engine) {
             titleRight = std::min(titleRight, item.x - 8.0f);
         }
     }
-    const std::wstring title = to_wide(window.getTitle());
-    const float available = std::max(0.0f, titleRight - titleLeft);
-    size_t titleLength = title.size();
-    while (titleLength > 0 && font->calcWidth(title, titleLength) > available) {
-        titleLength--;
-    }
-    if (titleLength > 0) {
-        const float textWidth = static_cast<float>(
-            font->calcWidth(title, titleLength)
-        );
-        const float centered = (static_cast<float>(size.x) - textWidth) * 0.5f;
-        const float titleX = std::clamp(
-            centered,
-            titleLeft,
-            std::max(titleLeft, titleRight - textWidth)
-        );
-        batch->setColor(glm::vec4(1.0f, 1.0f, 1.0f, 0.85f));
-        font->draw(
-            *batch, std::wstring_view(title).substr(0, titleLength),
-            static_cast<int>(titleX),
-            (height - font->getLineHeight()) / 2,
-            nullptr, 0
-        );
-        batch->untexture();
+    // the bar and its controls do not need the font, only the title does
+    if (font != nullptr) {
+        const std::wstring title = to_wide(window.getTitle());
+        const float available = std::max(0.0f, titleRight - titleLeft);
+        size_t titleLength = title.size();
+        while (titleLength > 0 &&
+               font->calcWidth(title, titleLength) > available) {
+            titleLength--;
+        }
+        if (titleLength > 0) {
+            const float textWidth = static_cast<float>(
+                font->calcWidth(title, titleLength)
+            );
+            const float centered =
+                (static_cast<float>(size.x) - textWidth) * 0.5f;
+            const float titleX = std::clamp(
+                centered,
+                titleLeft,
+                std::max(titleLeft, titleRight - textWidth)
+            );
+            batch->setColor(glm::vec4(1.0f, 1.0f, 1.0f, 0.85f));
+            font->draw(
+                *batch, std::wstring_view(title).substr(0, titleLength),
+                static_cast<int>(titleX),
+                (height - font->getLineHeight()) / 2,
+                nullptr, 0
+            );
+            batch->untexture();
+        }
     }
 
     for (size_t i = 0; i < buttons.size(); i++) {

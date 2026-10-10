@@ -66,6 +66,14 @@ WindowControl::Result WindowControl::initialize() {
         }
     }
 
+    // Windows blocks the main loop inside its own modal loop while the user
+    // drags a window border, and asks for a repaint instead: drawing a frame
+    // from there is what keeps the content alive during such a resize.
+    window->setRefreshHandler([this] {
+        engine.renderFrame();
+        engine.getWindow().swapBuffers();
+    });
+
     return Result {std::move(window), std::move(input)};
 }
 

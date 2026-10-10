@@ -281,8 +281,7 @@ void WaylandWindow::setMaximized(bool enabled) {
 }
 
 int WaylandWindow::marginSize() const {
-    if (!barEnabled || !shadowEnabled ||
-        (settings != nullptr && settings->simpleWindow.get())) {
+    if (!barEnabled || !shadowEnabled) {
         return 0;
     }
     if (fullscreen || maximized || Window::mode != WindowMode::WINDOWED) {
@@ -306,14 +305,6 @@ bool WaylandWindow::liveResizeEnabled() const {
 void WaylandWindow::updateSettings() {
     if (settings == nullptr) {
         return;
-    }
-    const bool simple = settings->simpleWindow.get();
-    if (simple != simpleWindowSetting) {
-        simpleWindowSetting = simple;
-        // The surface size depends on whether the frame around the content is
-        // drawn at all, so the egl window and the toplevel geometry change.
-        resize(size.x, size.y);
-        setShouldRefresh();
     }
     const bool compactBar = settings->compactWindowBar.get();
     if (compactBar != compactBarSetting) {

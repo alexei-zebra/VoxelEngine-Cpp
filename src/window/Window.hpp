@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 #include <stack>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -72,6 +73,29 @@ public:
         return empty;
     }
 
+    /// @brief Whether the engine draws the window frame itself here
+    ///
+    /// The bar height and its buttons only mean something when it does, and
+    /// the window settings are only shown where that is the case.
+    /// @brief Handler the windowing system calls when it wants a repaint
+    ///
+    /// Windows runs a modal loop while the user drags a window border and the
+    /// main loop is blocked inside it, so the only way to keep the content
+    /// alive during such a resize is to draw a frame from the message loop.
+    using RefreshHandler = std::function<void()>;
+
+    void setRefreshHandler(RefreshHandler handler) {
+        refreshHandler = std::move(handler);
+    }
+
+    const RefreshHandler& getRefreshHandler() const {
+        return refreshHandler;
+    }
+
+    virtual bool hasEngineFrame() const {
+        return false;
+    }
+
     virtual const char* getBackendName() const = 0;
 
     virtual int getDecorationHeight() const {
@@ -118,6 +142,7 @@ protected:
     std::stack<glm::vec4> scissorStack;
     glm::vec4 scissorArea {};
     WindowMode mode = WindowMode::WINDOWED;
+    RefreshHandler refreshHandler;
 };
 
 namespace display {

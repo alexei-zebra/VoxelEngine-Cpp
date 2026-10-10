@@ -66,16 +66,16 @@ function on_open()
         "</select>", app.get_setting("display.window-mode"))
     )
 
-    -- these only affect the window frame the native wayland backend draws
-    if app.get_window_backend() == "wayland" then
+    -- the bar height matters wherever the engine draws the window frame
+    if app.has_engine_window_frame() then
         create_checkbox(
             "display.compact-window-bar", "Narrow Window Bar",
             "display.compact-window-bar.tooltip"
         )
-        create_checkbox(
-            "display.simple-window", "Simple Window",
-            "display.simple-window.tooltip"
-        )
+    end
+    -- live rendering only has the cached frame as its alternative, which is
+    -- what the native wayland backend does
+    if app.get_window_backend() == "wayland" then
         create_checkbox(
             "display.live-resize", "Live Window Resize",
             "display.live-resize.tooltip"

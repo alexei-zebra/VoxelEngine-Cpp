@@ -114,6 +114,10 @@ class WaylandWindow : public Window {
     void focus() override;
     void setTitle(const std::string& title) override;
     const std::string& getTitle() const override;
+    bool hasEngineFrame() const override {
+        return barEnabled;
+    }
+
     const char* getBackendName() const override {
         return "wayland";
     }
@@ -133,7 +137,6 @@ class WaylandWindow : public Window {
     static constexpr int SHADOW_MARGIN = 10;
     static constexpr int RESIZE_GRAB_EXTRA = 2;
     bool shadowEnabled = false;
-    bool simpleWindowSetting = false;
     bool compactBarSetting = false;
     GLuint shadowProgram = 0;
 
