@@ -1,5 +1,7 @@
 #include "window/Window.hpp"
 #include "window/detail/BaseInput.hpp"
+#include "window/detail/FrameLayout.hpp"
+#include "window/detail/FrameOperations.hpp"
 #include "window/detail/WindowBackends.hpp"
 
 #include <GL/glew.h>
@@ -7,6 +9,7 @@
 #include <unordered_set>
 
 #include <chrono>
+#include <cmath>
 #include <stack>
 #include <vector>
 
@@ -31,6 +34,26 @@ static const char* get_platform_name() {
     }
 #endif
     return "unknown";
+}
+
+/// @brief Whether the engine draws the window frame itself.
+///
+/// Only where the client is allowed to move and resize its own window:
+/// wayland forbids that, and on macOS the system frame is the expected one.
+static bool use_engine_frame() {
+#if defined(_WIN32)
+    return true;
+#elif defined(__linux__)
+#if GLFW_VERSION_MAJOR > 3 || \
+    (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+    return glfwGetPlatform() == GLFW_PLATFORM_X11;
+#else
+    // GLFW 3.3 has no wayland backend at all
+    return true;
+#endif
+#else
+    return false;
+#endif
 }
 
 static std::unordered_set<std::string> supported_gl_extensions;
@@ -255,12 +278,17 @@ public:
         GLFWwindow* window,
         DisplaySettings* settings,
         int width,
-        int height
+        int height,
+        bool engineFrame
     )
         : Window({width, height}),
           input(glfwInput),
           settings(settings),
-          window(window) {
+          window(window),
+          engineFrame(engineFrame) {
+        if (engineFrame) {
+            frame_setup_native(window, &frame_hit_test, this);
+        }
     }
 
     ~GLFWWindow() {
@@ -301,6 +329,148 @@ public:
             return true;
         }
         return false;
+    }
+
+    int barHeight() const {
+        if (!engineFrame || mode != WindowMode::WINDOWED) {
+            return 0;
+        }
+        return settings->compactWindowBar.get() ? frame::BAR_HEIGHT_COMPACT
+                                                : frame::BAR_HEIGHT;
+    }
+
+    int getDecorationHeight() const override {
+        return barHeight();
+    }
+
+    const std::vector<DecorationButtonLayout>& getDecorationButtons() const
+        override {
+        buttonRects.clear();
+        if (barHeight() <= 0) {
+            return buttonRects;
+        }
+        frame::Rect rects[frame::MAX_BUTTONS];
+        const int count = layoutFrameButtons(rects);
+        for (int i = 0; i < count; i++) {
+            buttonRects.push_back({frameButtons[i], rects[i].x, rects[i].width});
+        }
+        return buttonRects;
+    }
+
+    int getDecorationHoveredButton() const override {
+        return hoveredButton;
+    }
+
+    /// @brief What the pointer is over, in client coordinates
+    frame::Hit hitTestFrame(int x, int y) const {
+        const int height = barHeight();
+        if (height <= 0) {
+            return frame::Hit {};
+        }
+        frame::Rect rects[frame::MAX_BUTTONS];
+        const int count = layoutFrameButtons(rects);
+        if (frame::buttonAt(
+                rects,
+                count,
+                height,
+                static_cast<float>(x),
+                static_cast<float>(y)
+            ) >= 0) {
+            return frame::Hit {};
+        }
+        if (y < height) {
+            return frame::Hit {true, 0};
+        }
+        return frame::Hit {
+            false,
+            frame::edgesAt(
+                getSize().x,
+                getSize().y,
+                height,
+                static_cast<float>(x),
+                static_cast<float>(y)
+            )};
+    }
+
+    /// @brief Turns a pointer move into hovering, dragging or resizing
+    void handleFrameMotion(double x, double y) {
+        if (input.isCursorLocked() || barHeight() <= 0) {
+            hoveredButton = -1;
+            return;
+        }
+        if (dragging || resizeEdges != 0) {
+            updateFrameDrag();
+        }
+        updateFrameHover(x, y);
+    }
+
+    /// @brief Turns a pointer button into a frame action
+    /// @return whether the frame handled the event
+    bool handleFrameButton(int button, bool pressed, double x, double y) {
+        if (button != GLFW_MOUSE_BUTTON_LEFT || input.isCursorLocked() ||
+            barHeight() <= 0) {
+            return false;
+        }
+        if (!pressed) {
+            if (pressedButton >= 0) {
+                const int index = pressedButton;
+                pressedButton = -1;
+                if (index == hoveredButton) {
+                    activateFrameButton(index);
+                }
+                return true;
+            }
+            if (dragging) {
+                dragging = false;
+                if (frameMoved) {
+                    lastBarClick = 0.0;
+                }
+                return true;
+            }
+            if (resizeEdges != 0) {
+                resizeEdges = 0;
+                return true;
+            }
+            return false;
+        }
+        updateFrameHover(x, y);
+        if (hoveredButton >= 0) {
+            pressedButton = hoveredButton;
+            return true;
+        }
+        const frame::Hit hit = hitTestFrame(
+            static_cast<int>(x), static_cast<int>(y)
+        );
+        if (hit.caption) {
+            const double now = glfwGetTime();
+            if (lastBarClick > 0.0 && now - lastBarClick < DOUBLE_CLICK_TIME) {
+                lastBarClick = 0.0;
+                toggleMaximize();
+                return true;
+            }
+            lastBarClick = now;
+            if (frame_start_move(window)) {
+                return true;
+            }
+            dragging = true;
+            frameMoved = false;
+            grabX = x;
+            grabY = y;
+            return true;
+        }
+        if (hit.edges == 0) {
+            return false;
+        }
+        if (frame_start_resize(window, hit.edges)) {
+            return true;
+        }
+        resizeEdges = hit.edges;
+        resizeStartW = getSize().x;
+        resizeStartH = getSize().y;
+        glfwGetWindowPos(window, &resizeStartX, &resizeStartY);
+        grabScreenX = resizeStartX + x;
+        grabScreenY = resizeStartY + y;
+        return true;
     }
 
     bool isMaximized() const override {
@@ -364,7 +534,7 @@ public:
                 settings->height.get(),
                 GLFW_DONT_CARE
             );
-            glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
+            applyDecoration();
             glfwSetWindowAttrib(window, GLFW_RESIZABLE, GLFW_TRUE);
             window_size_callback(window, settings->width.get(), settings->height.get());
         }
@@ -441,7 +611,191 @@ public:
     }
     
 private:
+    int layoutFrameButtons(frame::Rect* rects) const {
+        return frame::layoutButtons(
+            static_cast<float>(getSize().x),
+            static_cast<int>(frameButtons.size()),
+            settings->compactWindowBar.get(),
+            rects
+        );
+    }
+
+    void updateFrameHover(double x, double y) {
+        const int height = barHeight();
+        frame::Rect rects[frame::MAX_BUTTONS];
+        const int count = layoutFrameButtons(rects);
+        hoveredButton = frame::buttonAt(
+            rects, count, height, static_cast<float>(x), static_cast<float>(y)
+        );
+        if (dragging || resizeEdges != 0) {
+            return;
+        }
+        // inside the bar the controls win over the resize edges
+        const int edges = hoveredButton < 0
+            ? frame::edgesAt(
+                  getSize().x,
+                  getSize().y,
+                  height,
+                  static_cast<float>(x),
+                  static_cast<float>(y)
+              )
+            : 0;
+        if (edges != 0) {
+            setCursor(edgeCursor(edges));
+        } else if (y < height) {
+            setCursor(CursorShape::ARROW);
+        }
+    }
+
+    void updateFrameDrag() {
+        double x = 0.0, y = 0.0;
+        glfwGetCursorPos(window, &x, &y);
+        int windowX = 0, windowY = 0;
+        glfwGetWindowPos(window, &windowX, &windowY);
+        if (dragging) {
+            const double dx = x - grabX;
+            const double dy = y - grabY;
+            if (std::abs(dx) > MOVE_THRESHOLD || std::abs(dy) > MOVE_THRESHOLD) {
+                frameMoved = true;
+            }
+            glfwSetWindowPos(
+                window,
+                windowX + static_cast<int>(std::lround(dx)),
+                windowY + static_cast<int>(std::lround(dy))
+            );
+            return;
+        }
+        const double dx = (windowX + x) - grabScreenX;
+        const double dy = (windowY + y) - grabScreenY;
+        int width = resizeStartW;
+        int height = resizeStartH;
+        int newX = resizeStartX;
+        int newY = resizeStartY;
+        if (resizeEdges & frame::EDGE_LEFT) {
+            width = resizeStartW - static_cast<int>(std::lround(dx));
+            newX = resizeStartX + static_cast<int>(std::lround(dx));
+        } else if (resizeEdges & frame::EDGE_RIGHT) {
+            width = resizeStartW + static_cast<int>(std::lround(dx));
+        }
+        if (resizeEdges & frame::EDGE_TOP) {
+            height = resizeStartH - static_cast<int>(std::lround(dy));
+            newY = resizeStartY + static_cast<int>(std::lround(dy));
+        } else if (resizeEdges & frame::EDGE_BOTTOM) {
+            height = resizeStartH + static_cast<int>(std::lround(dy));
+        }
+        if (width < MIN_WIDTH) {
+            if (resizeEdges & frame::EDGE_LEFT) {
+                newX = resizeStartX + (resizeStartW - MIN_WIDTH);
+            }
+            width = MIN_WIDTH;
+        }
+        if (height < MIN_HEIGHT) {
+            if (resizeEdges & frame::EDGE_TOP) {
+                newY = resizeStartY + (resizeStartH - MIN_HEIGHT);
+            }
+            height = MIN_HEIGHT;
+        }
+        glfwSetWindowSize(window, width, height);
+        glfwSetWindowPos(window, newX, newY);
+    }
+
+    void activateFrameButton(int index) {
+        if (index < 0 || index >= static_cast<int>(frameButtons.size())) {
+            return;
+        }
+        switch (frameButtons[index]) {
+            case DecorationButton::MINIMIZE:
+                glfwIconifyWindow(window);
+                break;
+            case DecorationButton::MAXIMIZE:
+                toggleMaximize();
+                break;
+            case DecorationButton::CLOSE:
+                glfwSetWindowShouldClose(window, true);
+                break;
+        }
+    }
+
+    void toggleMaximize() {
+        if (glfwGetWindowAttrib(window, GLFW_MAXIMIZED)) {
+            glfwRestoreWindow(window);
+        } else {
+            glfwMaximizeWindow(window);
+        }
+        setShouldRefresh();
+    }
+
+    void applyDecoration() {
+        if (engineFrame) {
+            // frame_setup_native() owns the window style, GLFW would drop the
+            // thick frame the native resize border and snapping need
+            return;
+        }
+        glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
+    }
+
+    static frame::Hit frame_hit_test(void* userdata, int x, int y) {
+        return static_cast<GLFWWindow*>(userdata)->hitTestFrame(x, y);
+    }
+
+    static CursorShape edgeCursor(int edges) {
+        const bool left = edges & frame::EDGE_LEFT;
+        const bool right = edges & frame::EDGE_RIGHT;
+        const bool top = edges & frame::EDGE_TOP;
+        const bool bottom = edges & frame::EDGE_BOTTOM;
+        if (left && top) {
+            return CursorShape::NW_RESIZE;
+        }
+        if (right && top) {
+            return CursorShape::NE_RESIZE;
+        }
+        if (left && bottom) {
+            return CursorShape::SW_RESIZE;
+        }
+        if (right && bottom) {
+            return CursorShape::SE_RESIZE;
+        }
+        if (left) {
+            return CursorShape::W_RESIZE;
+        }
+        if (right) {
+            return CursorShape::E_RESIZE;
+        }
+        if (top) {
+            return CursorShape::N_RESIZE;
+        }
+        if (bottom) {
+            return CursorShape::S_RESIZE;
+        }
+        return CursorShape::ARROW;
+    }
+
     GLFWwindow* window;
+    bool engineFrame = false;
+    std::vector<DecorationButton> frameButtons {
+        DecorationButton::MINIMIZE,
+        DecorationButton::MAXIMIZE,
+        DecorationButton::CLOSE,
+    };
+    mutable std::vector<DecorationButtonLayout> buttonRects;
+    int hoveredButton = -1;
+    int pressedButton = -1;
+    bool dragging = false;
+    bool frameMoved = false;
+    double grabX = 0.0;
+    double grabY = 0.0;
+    int resizeEdges = 0;
+    int resizeStartX = 0;
+    int resizeStartY = 0;
+    int resizeStartW = 0;
+    int resizeStartH = 0;
+    double grabScreenX = 0.0;
+    double grabScreenY = 0.0;
+    double lastBarClick = 0.0;
+    static constexpr double DOUBLE_CLICK_TIME = 0.4;
+    static constexpr double MOVE_THRESHOLD = 4.0;
+    static constexpr int MIN_WIDTH = 320;
+    static constexpr int MIN_HEIGHT = 200;
     CursorShape cursor = CursorShape::ARROW;
     int framerate = -1;
     double prevSwap = 0.0;
@@ -453,6 +807,12 @@ static_assert(!std::is_abstract<GLFWWindow>());
 
 static void mouse_button_callback(GLFWwindow* window, int button, int action, int) {
     auto handler = static_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
+    double x = 0.0, y = 0.0;
+    glfwGetCursorPos(window, &x, &y);
+    if (handler->handleFrameButton(button, action == GLFW_PRESS, x, y)) {
+        handler->setShouldRefresh();
+        return;
+    }
     handler->input.onMouseCallback(button, action == GLFW_PRESS);
     handler->setShouldRefresh();
 }
@@ -499,6 +859,7 @@ static void scroll_callback(GLFWwindow* window, double, double yoffset) {
 static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
     auto handler = static_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
     handler->input.setCursorPosition(xpos, ypos);
+    handler->handleFrameMotion(xpos, ypos);
     handler->setShouldRefresh();
 }
 
@@ -556,6 +917,12 @@ std::tuple<
         return {nullptr, nullptr};
     }
     logger.info() << "windowing platform: " << get_platform_name();
+
+    const bool engineFrame = use_engine_frame();
+    if (engineFrame) {
+        // the engine draws the window bar, the system frame must be gone
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+    }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -636,8 +1003,11 @@ std::tuple<
 
     auto inputPtr = std::make_unique<GLFWInput>(window);
     auto windowPtr = std::make_unique<GLFWWindow>(
-        *inputPtr, window, settings, width, height
+        *inputPtr, window, settings, width, height, engineFrame
     );
+    // the engine draws the window bar from the title, and this is the only
+    // place the initial one is known
+    windowPtr->setTitle(title);
     glfwSetWindowUserPointer(window, windowPtr.get());
     return {std::move(windowPtr), std::move(inputPtr)};
 }
