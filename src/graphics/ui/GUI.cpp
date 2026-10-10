@@ -310,7 +310,7 @@ void GUI::draw(const DrawContext& pctx, Assets& assets) {
         frame->draw(ctx, assets);
     }
 
-    if (hover) {
+    if (hover && !engine.getWindow().ownsCursor()) {
         engine.getWindow().setCursor(hover->getCursor());
     }
     if (hover && debug) {

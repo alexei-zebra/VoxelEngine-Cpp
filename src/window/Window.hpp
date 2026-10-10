@@ -52,6 +52,14 @@ public:
     }
 
     virtual void setCursor(CursorShape shape) = 0;
+
+    /// @brief Whether the engine drawn window frame owns the cursor now
+    ///
+    /// The frame puts the resize cursors of its edges and of the bar, and the
+    /// GUI must not override them with the cursor of the hovered widget.
+    virtual bool ownsCursor() const {
+        return false;
+    }
     virtual void setMode(WindowMode mode) = 0;
     virtual WindowMode getMode() const = 0;
 

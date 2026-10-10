@@ -361,6 +361,10 @@ public:
         return hoveredButton;
     }
 
+    bool ownsCursor() const override {
+        return frameCursorActive;
+    }
+
     /// @brief What the pointer is over, in client coordinates
     frame::Hit hitTestFrame(int x, int y) const {
         const int height = barHeight();
@@ -396,6 +400,7 @@ public:
     void handleFrameMotion(double x, double y) {
         if (input.isCursorLocked() || barHeight() <= 0) {
             hoveredButton = -1;
+            frameCursorActive = false;
             return;
         }
         if (dragging || resizeEdges != 0) {
@@ -641,8 +646,15 @@ private:
               )
             : 0;
         if (edges != 0) {
+            frameCursorActive = true;
             setCursor(edgeCursor(edges));
         } else if (y < height) {
+            frameCursorActive = true;
+            setCursor(CursorShape::ARROW);
+        } else if (frameCursorActive) {
+            // the client area below the bar belongs to the GUI, which only
+            // sets a cursor when a widget is hovered
+            frameCursorActive = false;
             setCursor(CursorShape::ARROW);
         }
     }
@@ -779,6 +791,7 @@ private:
     };
     mutable std::vector<DecorationButtonLayout> buttonRects;
     int hoveredButton = -1;
+    bool frameCursorActive = false;
     int pressedButton = -1;
     bool dragging = false;
     bool frameMoved = false;
