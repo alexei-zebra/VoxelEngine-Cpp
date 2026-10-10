@@ -378,18 +378,18 @@ public:
             ) >= 0) {
             return frame::Hit {};
         }
-        if (y < height) {
-            return frame::Hit {true, 0};
+        // the resize edges win over the bar, its top strip resizes too
+        const int edges = frame::edgesAt(
+            getSize().x,
+            getSize().y,
+            height,
+            static_cast<float>(x),
+            static_cast<float>(y)
+        );
+        if (edges != 0) {
+            return frame::Hit {false, edges};
         }
-        return frame::Hit {
-            false,
-            frame::edgesAt(
-                getSize().x,
-                getSize().y,
-                height,
-                static_cast<float>(x),
-                static_cast<float>(y)
-            )};
+        return frame::Hit {y < height, 0};
     }
 
     /// @brief Turns a pointer move into hovering, dragging or resizing
@@ -919,6 +919,10 @@ std::tuple<
     logger.info() << "windowing platform: " << get_platform_name();
 
     const bool engineFrame = use_engine_frame();
+    logger.info() << "engine window frame: " << (engineFrame ? "on" : "off")
+                  << (engineFrame && frame_has_native_operations()
+                          ? ", window manager operations are on"
+                          : "");
     if (engineFrame) {
         // the engine draws the window bar, the system frame must be gone
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);

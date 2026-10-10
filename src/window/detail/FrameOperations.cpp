@@ -1,6 +1,7 @@
 #include "window/detail/FrameOperations.hpp"
 
 #if defined(VOXEL_X11_FRAME)
+#include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <dlfcn.h>
 
@@ -38,6 +39,50 @@ namespace {
         return api;
     }
 
+    /// @brief Whether the window manager advertises _NET_WM_MOVERESIZE
+    ///
+    /// Without it the request would be silently dropped, and the frame has to
+    /// move and resize the window itself. The answer is cached.
+    bool x11_supports_moveresize(Display* display) {
+        static int cached = -1;
+        if (cached >= 0) {
+            return cached == 1;
+        }
+        cached = 0;
+        const Atom supported = XInternAtom(display, "_NET_SUPPORTED", False);
+        const Atom moveresize =
+            XInternAtom(display, "_NET_WM_MOVERESIZE", False);
+        Atom type = 0;
+        int format = 0;
+        unsigned long count = 0, after = 0;
+        unsigned char* data = nullptr;
+        if (XGetWindowProperty(
+                display,
+                DefaultRootWindow(display),
+                supported,
+                0,
+                8192,
+                False,
+                XA_ATOM,
+                &type,
+                &format,
+                &count,
+                &after,
+                &data
+            ) == Success &&
+            data != nullptr) {
+            const Atom* atoms = reinterpret_cast<const Atom*>(data);
+            for (unsigned long i = 0; i < count; i++) {
+                if (atoms[i] == moveresize) {
+                    cached = 1;
+                    break;
+                }
+            }
+            XFree(data);
+        }
+        return cached == 1;
+    }
+
     /// @brief Edge mask to the _NET_WM_MOVERESIZE direction
     int x11_direction(int edges) {
         switch (edges) {
@@ -70,7 +115,8 @@ namespace {
         }
         Display* display = api.display();
         const Window window = api.window(glfwWindow);
-        if (display == nullptr || window == 0) {
+        if (display == nullptr || window == 0 ||
+            !x11_supports_moveresize(display)) {
             return false;
         }
         const Window root = DefaultRootWindow(display);
@@ -184,7 +230,8 @@ namespace {
 
 bool frame_has_native_operations() {
 #if defined(VOXEL_X11_FRAME)
-    return x11_api().available();
+    X11Api& api = x11_api();
+    return api.available() && x11_supports_moveresize(api.display());
 #else
     return false;
 #endif
