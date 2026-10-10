@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-#ifdef VOXELENGINE_SDBUS
+#ifdef VOXELCORE_SDBUS
 #include <systemd/sd-bus.h>
 #endif
 
@@ -13,7 +13,7 @@ namespace {
     constexpr const char* PORTAL_PATH = "/org/freedesktop/portal/desktop";
     constexpr const char* PORTAL_INTERFACE = "org.freedesktop.portal.Settings";
 
-#ifdef VOXELENGINE_SDBUS
+#ifdef VOXELCORE_SDBUS
     std::string readVariant(sd_bus_message* message) {
         const char* contents = nullptr;
         char type = 0;
@@ -42,7 +42,7 @@ namespace {
 }
 
 struct SettingsWatcher::Impl {
-#ifdef VOXELENGINE_SDBUS
+#ifdef VOXELCORE_SDBUS
     sd_bus* bus = nullptr;
     std::string changedKey;
     std::string changedValue;
@@ -78,7 +78,7 @@ SettingsWatcher::~SettingsWatcher() {
 }
 
 bool SettingsWatcher::open() {
-#ifdef VOXELENGINE_SDBUS
+#ifdef VOXELCORE_SDBUS
     if (impl->bus != nullptr) {
         return true;
     }
@@ -97,7 +97,7 @@ bool SettingsWatcher::open() {
 }
 
 void SettingsWatcher::close() {
-#ifdef VOXELENGINE_SDBUS
+#ifdef VOXELCORE_SDBUS
     if (impl->bus != nullptr) {
         sd_bus_flush_close_unref(impl->bus);
         impl->bus = nullptr;
@@ -106,7 +106,7 @@ void SettingsWatcher::close() {
 }
 
 bool SettingsWatcher::isAvailable() const {
-#ifdef VOXELENGINE_SDBUS
+#ifdef VOXELCORE_SDBUS
     return impl->bus != nullptr;
 #else
     return false;
@@ -116,7 +116,7 @@ bool SettingsWatcher::isAvailable() const {
 bool SettingsWatcher::read(
     const char* schema, const char* key, std::string& value
 ) {
-#ifdef VOXELENGINE_SDBUS
+#ifdef VOXELCORE_SDBUS
     if (impl->bus == nullptr) {
         return false;
     }
@@ -150,7 +150,7 @@ bool SettingsWatcher::read(
 bool SettingsWatcher::poll(
     const char* schema, const char* key, std::string& value
 ) {
-#ifdef VOXELENGINE_SDBUS
+#ifdef VOXELCORE_SDBUS
     if (impl->bus == nullptr) {
         open();
         return false;

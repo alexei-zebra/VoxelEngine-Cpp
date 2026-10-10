@@ -16,7 +16,7 @@
 
 static debug::Logger logger("window");
 
-#ifdef VOXELENGINE_WAYLAND
+#ifdef VOXELCORE_WAYLAND
 static bool prefer_wayland() {
     const char* display = getenv("WAYLAND_DISPLAY");
     if (display != nullptr && *display) {
@@ -31,7 +31,7 @@ std::tuple<
     std::unique_ptr<Input>
 > Window::initialize(DisplaySettings* settings, std::string title) {
     input_util::initialize();
-#ifdef VOXELENGINE_WAYLAND
+#ifdef VOXELCORE_WAYLAND
     if (prefer_wayland()) {
         auto result = wayland_window_initialize(settings, title);
         if (std::get<0>(result) && std::get<1>(result)) {

@@ -60,7 +60,7 @@ sudo pacman -S glfw glew glm libpng libvorbis openal luajit curl freetype2 opens
 
 On Linux the engine draws the window frame itself and needs `wayland-client`,
 `wayland-egl`, `wayland-scanner`, `wayland-protocols`, `libxkbcommon` and EGL.
-Build with `-DVOXELENGINE_WAYLAND=OFF` to fall back to GLFW.
+Build with `-DVOXELCORE_WAYLAND=OFF` to fall back to GLFW.
 
 ### Building engine with CMake
 
