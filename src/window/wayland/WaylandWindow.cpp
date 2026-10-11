@@ -1,7 +1,6 @@
 #include "window/wayland/WaylandWindow.hpp"
 
 #include "settings.hpp"
-#include "graphics/core/Texture.hpp"
 #include "util/platform.hpp"
 
 WaylandWindow::WaylandWindow(
@@ -100,6 +99,14 @@ WaylandWindow::~WaylandWindow() {
         xkb_keymap_unref(state.xkbKeymap);
         state.xkbKeymap = nullptr;
     }
+    if (state.xkbContext) {
+        xkb_context_unref(state.xkbContext);
+        state.xkbContext = nullptr;
+    }
+    if (state.display) {
+        wl_display_disconnect(state.display);
+    }
+    state = WaylandState {};
 }
 
 double WaylandWindow::time() {
@@ -118,13 +125,11 @@ void WaylandWindow::swapBuffers() {
             cacheContent();
         }
     } else if (resizing) {
-        // While the pointer drags the window border the content is only
-        // redrawn when the engine asked for it, otherwise the last frame is
-        // stretched into the new size.
+        // While the pointer drags the window border the content is redrawn
+        // only when the engine asked for it, otherwise composeFrame() reuses
+        // the cached frame.
         if (renderPending) {
             cacheContent();
-        } else if (marginSize() == 0) {
-            drawStretched();
         }
     } else if (frameRendered) {
         cacheContent();
@@ -291,7 +296,7 @@ int WaylandWindow::marginSize() const {
 }
 
 bool WaylandWindow::compactBar() const {
-    return settings != nullptr && settings->compactWindowBar.get();
+    return settings->compactWindowBar.get();
 }
 
 int WaylandWindow::barHeight() const {
@@ -299,13 +304,10 @@ int WaylandWindow::barHeight() const {
 }
 
 bool WaylandWindow::liveResizeEnabled() const {
-    return settings == nullptr || settings->liveResize.get();
+    return settings->liveResize.get();
 }
 
 void WaylandWindow::updateSettings() {
-    if (settings == nullptr) {
-        return;
-    }
     const bool compactBar = settings->compactWindowBar.get();
     if (compactBar != compactBarSetting) {
         compactBarSetting = compactBar;
@@ -342,8 +344,8 @@ void WaylandWindow::resize(int width, int height) {
     if (eglWindow) {
         const auto surface = surfaceSize();
         wl_egl_window_resize(eglWindow, surface.x, surface.y, 0, 0);
+        glViewport(0, 0, width, height);
     }
-    glViewport(0, 0, width, height);
     updateWindowGeometry();
     if (Window::mode == WindowMode::WINDOWED && !maximized) {
         settings->width.set(width);
@@ -359,6 +361,7 @@ void WaylandWindow::onConfigure(
     pendingWidth = width;
     pendingHeight = height;
     stateMaximized = false;
+    stateFullscreen = false;
     stateSuspended = false;
     stateActivated = false;
     const auto* values = static_cast<const uint32_t*>(states->data);
@@ -366,6 +369,9 @@ void WaylandWindow::onConfigure(
         switch (values[i]) {
             case XDG_TOPLEVEL_STATE_MAXIMIZED:
                 stateMaximized = true;
+                break;
+            case XDG_TOPLEVEL_STATE_FULLSCREEN:
+                stateFullscreen = true;
                 break;
             case XDG_TOPLEVEL_STATE_SUSPENDED:
                 stateSuspended = true;
@@ -379,6 +385,7 @@ void WaylandWindow::onConfigure(
 
 void WaylandWindow::applyConfigure() {
     maximized = stateMaximized;
+    fullscreen = stateFullscreen;
     suspended = stateSuspended;
     if (pendingWidth > 0 && pendingHeight > 0) {
         if (!initialSizeApplied && Window::mode == WindowMode::WINDOWED &&
@@ -531,7 +538,6 @@ void WaylandWindow::initShadowRenderer() {
     for (int i = 0; names[i] != nullptr; i++) {
         shadowUniforms[i] = glGetUniformLocation(shadowProgram, names[i]);
     }
-
 }
 
 namespace {
@@ -678,29 +684,6 @@ void WaylandWindow::cacheContent() {
     );
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     lastCacheTime = now();
-}
-
-void WaylandWindow::drawStretched() {
-    GlStateGuard state;
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, size.x, size.y);
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_BLEND);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_SCISSOR_TEST);
-    if (stretchProgram == 0 || cacheWidth == 0) {
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        return;
-    }
-    glUseProgram(stretchProgram);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, cacheTexture);
-    glUniform1i(stretchTextureUniform, 0);
-    glBindVertexArray(stretchVao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glBindVertexArray(0);
-    glUseProgram(0);
 }
 
 void WaylandWindow::onFrameDone() {

@@ -15,7 +15,7 @@
 #include <vector>
 
 class WaylandWindow : public Window {
-    public:
+public:
     WaylandInput& input;
     DisplaySettings* settings;
     EGLDisplay eglDisplay = EGL_NO_DISPLAY;
@@ -25,6 +25,7 @@ class WaylandWindow : public Window {
     int32_t pendingWidth = 0;
     int32_t pendingHeight = 0;
     bool stateMaximized = false;
+    bool stateFullscreen = false;
     bool stateSuspended = false;
     bool stateActivated = true;
     bool configured = false;
@@ -70,6 +71,10 @@ class WaylandWindow : public Window {
     double frameCost = 0.0;
     double cacheTimeout = 0.5;
     bool resizing = false;
+    // renderPending asks the engine for a new frame after a resize pause,
+    // presentPending marks a buffer the compositor has not taken yet and
+    // frameDone a frame callback that already fired. frameOnCallback says
+    // that pacing follows those callbacks rather than the wall clock.
     bool renderPending = true;
     bool presentPending = true;
     double lastPresent = 0.0;
@@ -173,7 +178,6 @@ class WaylandWindow : public Window {
 
     void makeContentOpaque(int x, int y, int width, int height);
 
-
     const std::vector<DecorationButtonLayout>& getDecorationButtons() const
         override;
 
@@ -197,11 +201,10 @@ class WaylandWindow : public Window {
     void initStretchRenderer();
     void resizeCache(int width, int height);
     void cacheContent();
-    void drawStretched();
     void enableOwnDecorations();
     void disableOwnDecorations();
     bool barVisible() const;
-                            int barButtonAt(double x, double y) const;
+    int barButtonAt(double x, double y) const;
     uint32_t barEdgeAt(double x, double y) const;
     static CursorShape edgeCursor(uint32_t edges);
     uint32_t pointerEdges() const;

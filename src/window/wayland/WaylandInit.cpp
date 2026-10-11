@@ -6,18 +6,42 @@
 #include "graphics/core/Texture.hpp"
 #include <EGL/eglext.h>
 
+WaylandInput::~WaylandInput() {
+    if (clipboardFd >= 0) {
+        close(clipboardFd);
+        clipboardFd = -1;
+    }
+    if (state.xkbContext) {
+        xkb_context_unref(state.xkbContext);
+        state.xkbContext = nullptr;
+    }
+    if (input == this) {
+        input = nullptr;
+    }
+}
+
 std::tuple<std::unique_ptr<Window>, std::unique_ptr<Input>>
 wayland_window_initialize(DisplaySettings* settings, std::string title) {
-    state.display = wl_display_connect(nullptr);
-    if (state.display == nullptr) {
-        waylandLogger.error() << "could not connect to the Wayland display";
+    std::unique_ptr<WaylandInput> inputPtr;
+    std::unique_ptr<WaylandWindow> windowPtr;
+    const auto fail = [&] (
+        const std::string& message
+    ) -> std::tuple<std::unique_ptr<Window>, std::unique_ptr<Input>> {
+        waylandLogger.error() << message;
         window = nullptr;
         input = nullptr;
+        windowPtr.reset();
+        inputPtr.reset();
         if (state.display != nullptr) {
             wl_display_disconnect(state.display);
             state.display = nullptr;
         }
         return {nullptr, nullptr};
+    };
+
+    state.display = wl_display_connect(nullptr);
+    if (state.display == nullptr) {
+        return fail("could not connect to the Wayland display");
     }
     state.registry = wl_display_get_registry(state.display);
     static const wl_registry_listener registryListener = [] {
@@ -30,23 +54,14 @@ wayland_window_initialize(DisplaySettings* settings, std::string title) {
     wl_registry_add_listener(state.registry, &registryListener, nullptr);
     wl_display_roundtrip(state.display);
     if (state.compositor == nullptr || state.wmBase == nullptr) {
-        waylandLogger.error() << "the compositor does not provide xdg-shell";
-        wl_display_disconnect(state.display);
-        state.display = nullptr;
-        window = nullptr;
-        input = nullptr;
-        if (state.display != nullptr) {
-            wl_display_disconnect(state.display);
-            state.display = nullptr;
-        }
-        return {nullptr, nullptr};
+        return fail("the compositor does not provide xdg-shell");
     }
 
     state.surface = wl_compositor_create_surface(state.compositor);
 
-    auto inputPtr = std::make_unique<WaylandInput>();
+    inputPtr = std::make_unique<WaylandInput>();
     input = inputPtr.get();
-    auto windowPtr = std::make_unique<WaylandWindow>(
+    windowPtr = std::make_unique<WaylandWindow>(
         *inputPtr, settings, settings->width.get(), settings->height.get()
     );
     window = windowPtr.get();
@@ -66,7 +81,7 @@ wayland_window_initialize(DisplaySettings* settings, std::string title) {
             return value;
         }();
 
-    wl_data_device_add_listener(state.dataDevice, &deviceListener, nullptr);
+        wl_data_device_add_listener(state.dataDevice, &deviceListener, nullptr);
     }
 
     {
@@ -116,14 +131,7 @@ wayland_window_initialize(DisplaySettings* settings, std::string title) {
 
     while (!window->configured) {
         if (wl_display_dispatch(state.display) == -1) {
-            waylandLogger.error() << "the Wayland connection was lost";
-            window = nullptr;
-        input = nullptr;
-        if (state.display != nullptr) {
-            wl_display_disconnect(state.display);
-            state.display = nullptr;
-        }
-        return {nullptr, nullptr};
+            return fail("the Wayland connection was lost");
         }
     }
 
@@ -132,14 +140,7 @@ wayland_window_initialize(DisplaySettings* settings, std::string title) {
     );
     if (window->eglDisplay == EGL_NO_DISPLAY ||
         eglInitialize(window->eglDisplay, nullptr, nullptr) == EGL_FALSE) {
-        waylandLogger.error() << "could not initialize EGL";
-        window = nullptr;
-        input = nullptr;
-        if (state.display != nullptr) {
-            wl_display_disconnect(state.display);
-            state.display = nullptr;
-        }
-        return {nullptr, nullptr};
+        return fail("could not initialize EGL");
     }
     eglBindAPI(EGL_OPENGL_API);
 
@@ -179,14 +180,7 @@ wayland_window_initialize(DisplaySettings* settings, std::string title) {
             waylandLogger.warning()
                 << "no EGL config with alpha, the drop shadow is off";
             if (!chooseConfig(0, requestedSamples) && !chooseConfig(0, 0)) {
-                waylandLogger.error() << "no suitable EGL config";
-                window = nullptr;
-        input = nullptr;
-        if (state.display != nullptr) {
-            wl_display_disconnect(state.display);
-            state.display = nullptr;
-        }
-        return {nullptr, nullptr};
+                return fail("no suitable EGL config");
             }
             window->shadowEnabled = false;
         }
@@ -214,29 +208,17 @@ wayland_window_initialize(DisplaySettings* settings, std::string title) {
             window->eglDisplay, window->eglSurface, window->eglSurface,
             window->eglContext
         ) == EGL_FALSE) {
-        waylandLogger.error() << "could not create the OpenGL context";
-        window = nullptr;
-        input = nullptr;
-        if (state.display != nullptr) {
-            wl_display_disconnect(state.display);
-            state.display = nullptr;
-        }
-        return {nullptr, nullptr};
+        return fail("could not create the OpenGL context");
     }
     eglSwapInterval(window->eglDisplay, 0);
 
     glewExperimental = GL_TRUE;
     GLenum glewError = glewInit();
     if (glewError != GLEW_OK && glewError != GLEW_ERROR_NO_GLX_DISPLAY) {
-        waylandLogger.error() << "failed to initialize GLEW:\n"
-                       << glewGetErrorString(glewError);
-        window = nullptr;
-        input = nullptr;
-        if (state.display != nullptr) {
-            wl_display_disconnect(state.display);
-            state.display = nullptr;
-        }
-        return {nullptr, nullptr};
+        return fail(
+            std::string("failed to initialize GLEW:\n") +
+            reinterpret_cast<const char*>(glewGetErrorString(glewError))
+        );
     }
 
     window->initStretchRenderer();
@@ -258,6 +240,10 @@ wayland_window_initialize(DisplaySettings* settings, std::string title) {
     waylandLogger.info() << "GL Renderer: "
                   << reinterpret_cast<const char*>(glGetString(GL_RENDERER));
     waylandLogger.info() << "windowing platform: Wayland (native)";
+
+    // The first configure may arrive with a zero size, so the geometry is
+    // published once the surface exists.
+    window->updateWindowGeometry();
 
     return {std::move(windowPtr), std::move(inputPtr)};
 }

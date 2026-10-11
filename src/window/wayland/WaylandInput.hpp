@@ -10,10 +10,12 @@
 #include <poll.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <chrono>
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 /// @brief Offset between the evdev keycode and the xkb one
@@ -21,6 +23,8 @@ static constexpr uint32_t XKB_KEYCODE_OFFSET = 8;
 
 class WaylandInput : public BaseInput {
 public:
+    ~WaylandInput() override;
+
     void pollEvents(bool waitForRefresh) override;
 
     const char* getClipboardText() const override {
@@ -161,7 +165,8 @@ public:
 
     /// @brief Release every pressed key, e.g. when the keyboard focus is lost
     void releasePressedKeys() {
-        const auto keys = pressedKeys;
+        const auto keys = heldKeys;
+        heldKeys.clear();
         for (auto key : keys) {
             onKeyCallback(static_cast<int>(key), false);
         }
@@ -190,6 +195,11 @@ public:
             int keycode = keycode_from_keysym(syms[0]);
             if (keycode != 0) {
                 onKeyCallback(keycode, pressed);
+                if (pressed) {
+                    heldKeys.insert(static_cast<uint32_t>(keycode));
+                } else {
+                    heldKeys.erase(static_cast<uint32_t>(keycode));
+                }
             }
             if (pressed) {
                 repeatKeycode = code;
@@ -344,13 +354,45 @@ private:
             listener.send = [] (
                 void*, wl_data_source*, const char*, int32_t fd
             ) {
-                if (input) {
-                    const std::string& text = input->sourceText;
-                    if (!text.empty() &&
-                        write(fd, text.data(), text.size()) < 0) {
-                        waylandLogger.warning()
-                            << "could not write to the clipboard";
+                if (input == nullptr) {
+                    close(fd);
+                    return;
+                }
+                const std::string& text = input->sourceText;
+                const int flags = fcntl(fd, F_GETFL, 0);
+                if (flags != -1) {
+                    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+                }
+                // The reader may be slow, so the frame loop is not allowed to
+                // block on the pipe: partial writes and EAGAIN are retried
+                // only for a bounded time.
+                const double deadline = waylandNow() + 0.1;
+                size_t offset = 0;
+                while (offset < text.size()) {
+                    const ssize_t written = write(
+                        fd, text.data() + offset, text.size() - offset
+                    );
+                    if (written > 0) {
+                        offset += static_cast<size_t>(written);
+                        continue;
                     }
+                    if (written < 0 && errno == EINTR) {
+                        continue;
+                    }
+                    if (written < 0 &&
+                        (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                        if (waylandNow() < deadline) {
+                            pollfd descriptor {fd, POLLOUT, 0};
+                            if (poll(&descriptor, 1, 10) > 0) {
+                                continue;
+                            }
+                        }
+                    }
+                    break;
+                }
+                if (offset < text.size()) {
+                    waylandLogger.warning()
+                        << "could not write to the clipboard";
                 }
                 close(fd);
             };
@@ -386,6 +428,8 @@ private:
 
     CursorShape cursor = CursorShape::ARROW;
     std::optional<CursorShape> overrideCursor;
+    // the keys really held: BaseInput::pressedKeys is never erased
+    std::unordered_set<uint32_t> heldKeys;
     xkb_keycode_t repeatKeycode = 0;
     double repeatTime = 0.0;
     double lastRepeat = 0.0;

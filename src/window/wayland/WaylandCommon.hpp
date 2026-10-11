@@ -26,17 +26,16 @@
 #include <memory>
 #include <optional>
 #include <poll.h>
-#include <stack>
 #include <string>
 #include <tuple>
 #include <vector>
 
 struct GlStateGuard {
     GLint values[16] {};
-    GLint attribs[3][7] {};
+    GLint attribs[3][6] {};
     GLint viewport[4] {};
     GLint colorMask[4] {};
-    GLboolean flags[6] {};
+    GLboolean flags[4] {};
     GLboolean attribFlags[3] {};
     GlStateGuard();
     ~GlStateGuard();
@@ -99,8 +98,6 @@ void ignore_event(Args...) {
 
 void dispatch_events(int timeoutMs);
 int keycode_from_keysym(xkb_keysym_t sym);
-
-extern bool serverDecorations;
 
 void zxdg_decoration_configure(
     void*, zxdg_toplevel_decoration_v1*, uint32_t mode

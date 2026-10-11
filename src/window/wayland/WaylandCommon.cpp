@@ -1,5 +1,6 @@
 #include "window/wayland/WaylandCommon.hpp"
 
+#include <cerrno>
 #include <cstring>
 #include <poll.h>
 
@@ -20,7 +21,6 @@ double waylandNow() {
     ).count();
 }
 
-
 GlStateGuard::GlStateGuard() {
     glGetIntegerv(GL_CURRENT_PROGRAM, &values[0]);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &values[1]);
@@ -37,6 +37,7 @@ GlStateGuard::GlStateGuard() {
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &values[12]);
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &values[13]);
     glGetIntegerv(GL_DEPTH_WRITEMASK, &values[14]);
+    glGetIntegerv(GL_PACK_ALIGNMENT, &values[15]);
     glGetIntegerv(GL_VIEWPORT, viewport);
     glGetIntegerv(GL_COLOR_WRITEMASK, colorMask);
     for (int i = 0; i < 3; i++) {
@@ -52,11 +53,13 @@ GlStateGuard::GlStateGuard() {
         );
         glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &attribs[i][3]);
         glGetVertexAttribiv(
-            i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &attribs[i][5]
+            i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &attribs[i][4]
         );
         void* pointer = nullptr;
         glGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &pointer);
-        attribs[i][6] = static_cast<GLint>(reinterpret_cast<intptr_t>(pointer));
+        attribs[i][5] = static_cast<GLint>(
+            reinterpret_cast<intptr_t>(pointer)
+        );
     }
     flags[0] = glIsEnabled(GL_BLEND);
     flags[1] = glIsEnabled(GL_DEPTH_TEST);
@@ -70,6 +73,7 @@ GlStateGuard::~GlStateGuard() {
     glActiveTexture(values[2]);
     glBindTexture(GL_TEXTURE_2D, values[3]);
     glPixelStorei(GL_UNPACK_ALIGNMENT, values[4]);
+    glPixelStorei(GL_PACK_ALIGNMENT, values[15]);
     glBlendFuncSeparate(values[5], values[6], values[7], values[8]);
     glBlendEquationSeparate(values[9], values[10]);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, values[12]);
@@ -86,11 +90,11 @@ GlStateGuard::~GlStateGuard() {
         }
     }
     for (int i = 0; i < 3; i++) {
-        glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(attribs[i][5]));
+        glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(attribs[i][4]));
         glVertexAttribPointer(
             i, attribs[i][0], static_cast<GLenum>(attribs[i][1]),
             attribs[i][2], attribs[i][3],
-            reinterpret_cast<void*>(static_cast<intptr_t>(attribs[i][6]))
+            reinterpret_cast<void*>(static_cast<intptr_t>(attribs[i][5]))
         );
         if (attribFlags[i]) {
             glEnableVertexAttribArray(i);
@@ -124,8 +128,6 @@ class WaylandWindow;
 
 WaylandInput* input = nullptr;
 WaylandWindow* window = nullptr;
-
-bool serverDecorations = false;
 
 int keycode_from_keysym(xkb_keysym_t sym) {
     switch (sym) {
@@ -203,21 +205,43 @@ int keycode_from_keysym(xkb_keysym_t sym) {
 }
 
 void dispatch_events(int timeoutMs) {
-    wl_display_flush(state.display);
+    if (state.display == nullptr) {
+        return;
+    }
+    if (wl_display_get_error(state.display) != 0) {
+        on_display_error();
+        return;
+    }
+    if (wl_display_flush(state.display) == -1 && errno != EAGAIN) {
+        on_display_error();
+        return;
+    }
     while (wl_display_prepare_read(state.display) != 0) {
-        wl_display_dispatch_pending(state.display);
-        wl_display_flush(state.display);
+        if (wl_display_get_error(state.display) != 0) {
+            on_display_error();
+            return;
+        }
+        if (wl_display_dispatch_pending(state.display) == -1 ||
+            wl_display_get_error(state.display) != 0) {
+            on_display_error();
+            return;
+        }
+        if (wl_display_flush(state.display) == -1 && errno != EAGAIN) {
+            on_display_error();
+            return;
+        }
     }
     pollfd descriptor {wl_display_get_fd(state.display), POLLIN, 0};
     if (poll(&descriptor, 1, timeoutMs) > 0) {
         if (wl_display_read_events(state.display) == -1) {
-            wl_display_cancel_read(state.display);
+            on_display_error();
+            return;
         }
     } else {
         wl_display_cancel_read(state.display);
     }
-    wl_display_dispatch_pending(state.display);
-    if (wl_display_get_error(state.display) != 0) {
+    if (wl_display_dispatch_pending(state.display) == -1 ||
+        wl_display_get_error(state.display) != 0) {
         on_display_error();
     }
 }

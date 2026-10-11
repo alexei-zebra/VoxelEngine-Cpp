@@ -44,6 +44,7 @@ namespace {
 struct SettingsWatcher::Impl {
 #ifdef VOXELCORE_SDBUS
     sd_bus* bus = nullptr;
+    std::string changedSchema;
     std::string changedKey;
     std::string changedValue;
     bool changed = false;
@@ -58,7 +59,8 @@ struct SettingsWatcher::Impl {
             return 0;
         }
         const std::string value = readVariant(message);
-        if (key != nullptr && !value.empty()) {
+        if (schema != nullptr && key != nullptr && !value.empty()) {
+            self->changedSchema = schema;
             self->changedKey = key;
             self->changedValue = value;
             self->changed = true;
@@ -86,10 +88,14 @@ bool SettingsWatcher::open() {
         impl->bus = nullptr;
         return false;
     }
-    sd_bus_match_signal(
-        impl->bus, nullptr, nullptr, PORTAL_PATH, PORTAL_INTERFACE,
-        "SettingChanged", &Impl::onSettingChanged, impl
-    );
+    if (sd_bus_match_signal(
+            impl->bus, nullptr, nullptr, PORTAL_PATH, PORTAL_INTERFACE,
+            "SettingChanged", &Impl::onSettingChanged, impl
+        ) < 0) {
+        sd_bus_flush_close_unref(impl->bus);
+        impl->bus = nullptr;
+        return false;
+    }
     return true;
 #else
     return false;
@@ -163,10 +169,17 @@ bool SettingsWatcher::poll(
             message = nullptr;
         }
     }
-    if (!impl->changed || impl->changedKey != key) {
+    if (result < 0) {
+        close();
+        return false;
+    }
+    if (!impl->changed) {
         return false;
     }
     impl->changed = false;
+    if (impl->changedSchema != schema || impl->changedKey != key) {
+        return false;
+    }
     value = impl->changedValue;
     return true;
 #else

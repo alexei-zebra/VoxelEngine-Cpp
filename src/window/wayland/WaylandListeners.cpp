@@ -38,6 +38,7 @@ static void pointer_motion(
     const double x = wl_fixed_to_double(sx);
     const double y = wl_fixed_to_double(sy);
     if (window && window->handleBarMotion(x, y)) {
+        window->setShouldRefresh();
         return;
     }
     if (input) {
@@ -371,7 +372,8 @@ void registry_global_remove(void*, wl_registry*, uint32_t) {
 void zxdg_decoration_configure(
     void*, zxdg_toplevel_decoration_v1*, uint32_t mode
 ) {
-    serverDecorations = mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
+    const bool serverDecorations =
+        mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
     if (window != nullptr) {
         if (serverDecorations) {
             window->disableOwnDecorations();

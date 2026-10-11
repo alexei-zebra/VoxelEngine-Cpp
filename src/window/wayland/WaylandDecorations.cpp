@@ -55,22 +55,27 @@ namespace {
         }
     }
 
+    bool layoutUnavailable = false;
+
     bool read_button_layout(
         std::vector<DecorationButton>& left,
         std::vector<DecorationButton>& right
     ) {
-        FILE* pipe = popen(
-            "gsettings get org.gnome.desktop.wm.preferences button-layout"
-            " 2>/dev/null",
-            "r"
-        );
+        if (layoutUnavailable) {
+            return false;
+        }
+        const std::string command = std::string("gsettings get ") +
+            LAYOUT_SCHEMA + " " + LAYOUT_KEY + " 2>/dev/null";
+        FILE* pipe = popen(command.c_str(), "r");
         if (pipe == nullptr) {
+            layoutUnavailable = true;
             return false;
         }
         char buffer[256] {};
         const char* line = fgets(buffer, sizeof(buffer), pipe);
         const int status = pclose(pipe);
         if (line == nullptr || status != 0) {
+            layoutUnavailable = true;
             return false;
         }
         split_layout(std::string(buffer), left, right);
@@ -190,7 +195,11 @@ int WaylandWindow::getDecorationHoveredButton() const {
 }
 
 void WaylandWindow::enableOwnDecorations() {
+    if (barEnabled) {
+        return;
+    }
     barEnabled = true;
+    resize(size.x, size.y);
     setShouldRefresh();
 }
 
@@ -222,10 +231,13 @@ int WaylandWindow::barButtonAt(double x, double y) const {
 }
 
 uint32_t WaylandWindow::barEdgeAt(double x, double y) const {
+    if (!barVisible()) {
+        return 0;
+    }
     if (barButtonAt(x, y) >= 0) {
         return 0;
     }
-    const bool inBar = barVisible() && y >= 0.0 && y < barHeight();
+    const bool inBar = y >= 0.0 && y < barHeight();
     uint32_t edges = 0;
     if (y < BAR_EDGE) {
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_TOP;
@@ -276,6 +288,9 @@ CursorShape WaylandWindow::edgeCursor(uint32_t edges) {
 }
 
 uint32_t WaylandWindow::pointerEdges() const {
+    if (!barVisible()) {
+        return 0;
+    }
     const int margin = marginSize();
     uint32_t edges = 0;
     if (margin > 0) {
@@ -399,9 +414,11 @@ bool WaylandWindow::handleBarButton(uint32_t serial, int button, bool pressed) {
 }
 
 bool WaylandWindow::handleBarScroll() const {
+    if (!barVisible()) {
+        return false;
+    }
     const double y = contentY(pointerY);
-    return (barVisible() && y >= 0.0 && y < barHeight()) ||
-           pointerEdges() != 0;
+    return (y >= 0.0 && y < barHeight()) || pointerEdges() != 0;
 }
 
 void WaylandWindow::onPointerLeave() {
