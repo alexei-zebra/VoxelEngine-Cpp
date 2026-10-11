@@ -243,10 +243,20 @@ void GUI::actFocused() {
 
 void GUI::act(float delta, const glm::uvec2& vp) {
     const uint inset = static_cast<uint>(viewportOffset);
+    const uint contentHeight = vp.y > inset ? vp.y - inset : vp.y;
     container->setPos({0.0f, static_cast<float>(inset)});
-    container->setSize({vp.x, vp.y > inset ? vp.y - inset : vp.y});
+    container->setSize({vp.x, contentHeight});
     for (auto& pair : frames) {
-        pair.second->act(delta);
+        auto& frame = *pair.second;
+        auto size = frame.getSize();
+        // the bar covers the top of the window, so a frame as high as the
+        // window is limited to the content area
+        if (size.y > static_cast<float>(contentHeight)) {
+            size.y = static_cast<float>(contentHeight);
+            frame.setSize(size);
+            frame.setPos({0.0f, static_cast<float>(inset)});
+        }
+        frame.act(delta);
     }
     auto prevfocus = focus;
 
