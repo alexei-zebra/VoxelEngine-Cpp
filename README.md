@@ -27,7 +27,7 @@ sudo make install
 
 ```sh
 su -
-apt-get install libglfw3-devel libGLEW-devel libglm-devel libpng-devel libvorbis-devel libopenal-devel libluajit-devel libstdc++13-devel-static libcurl-devel libfreetype-devel libssl-devel
+apt-get install entt-devel libglfw3-devel libGLEW-devel libglm-devel libpng-devel libvorbis-devel libopenal-devel libluajit-devel libstdc++13-devel-static libcurl-devel libfreetype-devel libssl-devel
 ```
 
 #### Debian based distros
@@ -58,9 +58,12 @@ sudo pacman -S glfw glew glm libpng libvorbis openal luajit curl freetype2 opens
 
 #### Wayland
 
-On Linux the engine draws the window frame itself and needs `wayland-client`,
-`wayland-egl`, `wayland-scanner`, `wayland-protocols`, `libxkbcommon` and EGL.
-Build with `-DVOXELCORE_WAYLAND=OFF` to fall back to GLFW.
+On Linux the engine draws the window frame itself and needs `libwayland-dev`
+(with `libwayland-bin` for `wayland-scanner`), `libxkbcommon-dev` and
+`libegl-dev`. The protocol XML descriptions are vendored in
+`src/window/wayland/protocols`, so the `wayland-protocols` package is not used.
+`libsystemd-dev` is optional and adds the window button layout read through
+sd-bus. Build with `-DVOXELCORE_WAYLAND=OFF` to fall back to GLFW.
 
 ### Building engine with CMake
 

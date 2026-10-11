@@ -116,10 +116,10 @@ set(VOXEL_COMPILE_OPTIONS
            -Wduplicated-cond
            >)
 
-# Everything the engine sources and their public headers include: the backends
-# compile against the same surface, and a missing include directory shows up as
-# a build failure only on the platforms that keep the library outside the
-# default include path.
+# The include directory and the window/render dependencies shared by the engine
+# and the window backends: glfw, GLEW, OpenGL and glm. The remaining engine
+# dependencies (luajit, EnTT, OpenAL, zlib and others) are linked to VoxelCoreSrc
+# only, even though the public headers pull them in.
 add_library(VoxelCoreInterface INTERFACE)
 
 target_include_directories(VoxelCoreInterface INTERFACE

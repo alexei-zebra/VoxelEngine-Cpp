@@ -1,5 +1,3 @@
-project(VoxelWindowBackends)
-
 # Input state shared by the window backends.
 add_library(VoxelWindowBase STATIC BaseInput.cpp)
 
@@ -17,7 +15,7 @@ target_link_libraries(
 # On X11 the window manager moves and resizes the window when the engine draws
 # the frame. A wayland-only build of GLFW does not answer, and the frame then
 # falls back to moving the window itself.
-if(UNIX AND NOT APPLE)
+if(NOT WIN32 AND NOT APPLE)
     find_package(X11)
     if(X11_FOUND)
         target_compile_definitions(VoxelGLFW PRIVATE VOXEL_X11_FRAME=1)

@@ -1,5 +1,3 @@
-project(VoxelWayland)
-
 # The library is linked from the parent directory, so the imported targets of
 # its dependencies have to be visible outside of this directory too.
 function(voxel_wayland_pkg_config MODULE)
@@ -32,9 +30,25 @@ function(voxel_add_wayland_backend)
     find_library(WAYLAND_EGL_LIBRARY NAMES wayland-egl libwayland-egl.so.1)
     find_program(WAYLAND_SCANNER wayland-scanner)
 
-    if(NOT wayland-client_FOUND OR NOT xkbcommon_FOUND OR NOT egl_FOUND
-       OR NOT WAYLAND_EGL_LIBRARY OR NOT WAYLAND_SCANNER)
-        message(STATUS "Wayland backend is off: dependencies are not found")
+    set(wayland_missing)
+    if(NOT wayland-client_FOUND)
+        list(APPEND wayland_missing wayland-client)
+    endif()
+    if(NOT xkbcommon_FOUND)
+        list(APPEND wayland_missing xkbcommon)
+    endif()
+    if(NOT egl_FOUND)
+        list(APPEND wayland_missing egl)
+    endif()
+    if(NOT WAYLAND_EGL_LIBRARY)
+        list(APPEND wayland_missing wayland-egl)
+    endif()
+    if(NOT WAYLAND_SCANNER)
+        list(APPEND wayland_missing wayland-scanner)
+    endif()
+    if(wayland_missing)
+        list(JOIN wayland_missing ", " wayland_missing)
+        message(WARNING "Wayland backend is off: not found: ${wayland_missing}")
         return()
     endif()
 
@@ -56,7 +70,8 @@ function(voxel_add_wayland_backend)
     # tablet is referenced by cursor-shape-v1
     voxel_wayland_protocol(tablet-unstable-v2.xml tablet-unstable-v2)
 
-    file(GLOB wayland_sources ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+    file(GLOB wayland_sources CONFIGURE_DEPENDS
+         ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 
     add_library(VoxelWayland STATIC ${wayland_sources} ${WAYLAND_SOURCES})
 
