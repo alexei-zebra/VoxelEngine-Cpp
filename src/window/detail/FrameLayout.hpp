@@ -2,10 +2,10 @@
 
 /// @brief Geometry of the window frame the engine draws itself.
 ///
-/// Wayland has its own implementation because it also talks to the compositor,
-/// this one is used by the backends that decorate their window by themselves.
-/// It deliberately depends on nothing but the standard library, so the layout
-/// and the hit testing can be checked without a window.
+/// Wayland has its own implementation because it also talks to the compositor.
+/// This one is used by the GLFW backends, on an undecorated window, and
+/// depends on nothing but the standard library, so the layout and the hit
+/// testing can be checked without a window.
 namespace frame {
     constexpr int BAR_HEIGHT = 48;
     constexpr int BAR_HEIGHT_COMPACT = 24;

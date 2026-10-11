@@ -66,10 +66,10 @@ WindowControl::Result WindowControl::initialize() {
         }
     }
 
-    // Windows blocks the main loop inside its own modal loop while the user
-    // drags a window border, and asks for a repaint instead: drawing a frame
-    // from there is what keeps the content alive during such a resize.
+    // The platform blocks the main loop while it resizes the window, so the
+    // frame is drawn from here, with the frontend layout updated first.
     window->setRefreshHandler([this] {
+        engine.updateFrontend();
         engine.renderFrame();
         engine.getWindow().swapBuffers();
     });

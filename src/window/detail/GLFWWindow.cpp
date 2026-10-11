@@ -379,7 +379,7 @@ public:
 
     /// @brief Whether the window is redrawn while it is being resized
     bool isLiveResizeEnabled() const {
-        return settings == nullptr || settings->liveResize.get();
+        return settings->liveResize.get();
     }
 
     /// @brief Draws a frame for the windowing system
@@ -388,14 +388,19 @@ public:
     /// loop inside it, so the only frames drawn during such a resize are the
     /// ones asked for from the message loop.
     void drawRefreshFrame() {
-        if (!isLiveResizeEnabled()) {
+        if (inRefreshCallback || !isLiveResizeEnabled()) {
             return;
         }
         const auto& refresh = getRefreshHandler();
         if (!refresh) {
             return;
         }
+        // the system may ask twice for one resize
+        if (size == lastRefreshSize) {
+            return;
+        }
         inRefreshCallback = true;
+        lastRefreshSize = size;
         refresh();
         inRefreshCallback = false;
     }
@@ -445,6 +450,7 @@ public:
     /// @brief Turns a pointer move into hovering, dragging or resizing
     void handleFrameMotion(double x, double y) {
         if (input.isCursorLocked() || barHeight() <= 0) {
+            resetFrameInteraction();
             hoveredButton = -1;
             frameCursorActive = false;
             return;
@@ -494,12 +500,19 @@ public:
         );
         if (hit.caption) {
             const double now = glfwGetTime();
-            if (lastBarClick > 0.0 && now - lastBarClick < DOUBLE_CLICK_TIME) {
+            int windowX = 0, windowY = 0;
+            glfwGetWindowPos(window, &windowX, &windowY);
+            // a window manager drag moves the window, and it must not leave
+            // the previous click able to turn the next one into a double one
+            if (lastBarClick > 0.0 && now - lastBarClick < DOUBLE_CLICK_TIME &&
+                windowX == lastBarClickX && windowY == lastBarClickY) {
                 lastBarClick = 0.0;
                 toggleMaximize();
                 return true;
             }
             lastBarClick = now;
+            lastBarClickX = windowX;
+            lastBarClickY = windowY;
             if (frame_start_move(window)) {
                 return true;
             }
@@ -555,6 +568,7 @@ public:
 
     void setMode(WindowMode mode) override {
         Window::mode = mode;
+        resetFrameInteraction();
         GLFWmonitor* monitor = get_window_monitor(window);
         const GLFWvidmode* glfwMode = glfwGetVideoMode(monitor);
     
@@ -669,6 +683,14 @@ private:
             settings->compactWindowBar.get(),
             rects
         );
+    }
+
+    /// @brief Drops the interaction the frame can no longer keep
+    void resetFrameInteraction() {
+        dragging = false;
+        resizeEdges = 0;
+        pressedButton = -1;
+        frameMoved = false;
     }
 
     void updateFrameHover(double x, double y) {
@@ -854,6 +876,8 @@ private:
     double grabScreenX = 0.0;
     double grabScreenY = 0.0;
     double lastBarClick = 0.0;
+    int lastBarClickX = 0;
+    int lastBarClickY = 0;
     static constexpr double DOUBLE_CLICK_TIME = 0.4;
     static constexpr double MOVE_THRESHOLD = 4.0;
     static constexpr int MIN_WIDTH = 320;
@@ -864,6 +888,8 @@ private:
     int posX = 0;
     int posY = 0;
     bool shouldRefresh = true;
+    /// @brief Size of the last frame drawn from the refresh callback
+    glm::ivec2 lastRefreshSize {0, 0};
 };
 static_assert(!std::is_abstract<GLFWWindow>());
 

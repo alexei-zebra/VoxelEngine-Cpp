@@ -17,7 +17,7 @@ struct DisplaySettings;
 enum class DecorationButton {
     CLOSE,
     MINIMIZE,
-    MAXIMIZE,
+    MAXIMIZE
 };
 
 struct DecorationButtonLayout {
@@ -73,10 +73,6 @@ public:
         return empty;
     }
 
-    /// @brief Whether the engine draws the window frame itself here
-    ///
-    /// The bar height and its buttons only mean something when it does, and
-    /// the window settings are only shown where that is the case.
     /// @brief Handler the windowing system calls when it wants a repaint
     ///
     /// Windows runs a modal loop while the user drags a window border and the
@@ -92,6 +88,10 @@ public:
         return refreshHandler;
     }
 
+    /// @brief Whether the engine draws the window frame itself here
+    ///
+    /// The bar height and its buttons only mean something when it does, and
+    /// the window settings are only shown where that is the case.
     virtual bool hasEngineFrame() const {
         return false;
     }
@@ -106,7 +106,8 @@ public:
         return -1;
     }
 
-    virtual const std::vector<DecorationButtonLayout>& getDecorationButtons() const {
+    virtual const std::vector<DecorationButtonLayout>& getDecorationButtons()
+        const {
         static const std::vector<DecorationButtonLayout> empty;
         return empty;
     }

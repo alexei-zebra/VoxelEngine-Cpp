@@ -15,6 +15,7 @@ public:
 
     void onOpen() override;
 
+    // the bar covers the top getDecorationHeight() pixels, no widgets there
     int getContentInset(const Window&) const override {
         return 0;
     }

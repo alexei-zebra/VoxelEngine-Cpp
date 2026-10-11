@@ -11,27 +11,15 @@
 #include "graphics/ui/GUI.hpp"
 #include "window/Window.hpp"
 #include "assets/Assets.hpp"
+#include "util/stringutil.hpp"
 
 #include <algorithm>
 #include <string_view>
-#include <codecvt>
-#include <locale>
-
-namespace {
-    std::wstring to_wide(const std::string& text) {
-        std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-        return converter.from_bytes(text);
-    }
-
-    const std::string BAR_FONT = FONT_DEFAULT;
-}
 
 /// @brief Draws the window bar the backend cannot draw itself.
 ///
-/// The bar lives in window coordinates while the GUI container is shifted
-/// down by its height in game, so the GUI camera cannot be reused here: the
-/// bar sets its own viewport and projection. It borrows the GUI batch only
-/// because the ui shader it needs is the one the GUI already loads.
+/// The bar lives in window coordinates, so it sets the shader and projection
+/// itself instead of depending on the state the GUI left behind.
 void draw_window_bar(Engine& engine) {
     auto& window = engine.getWindow();
     const int height = window.getDecorationHeight();
@@ -39,7 +27,7 @@ void draw_window_bar(Engine& engine) {
         return;
     }
     auto* batch = engine.getGUI().getBatch2D();
-    auto font = engine.requireAssets().getShared<Font>(BAR_FONT);
+    auto font = engine.requireAssets().getShared<Font>(FONT_DEFAULT);
     const auto size = window.getSize();
     const float barHeight = static_cast<float>(height);
 
@@ -80,7 +68,7 @@ void draw_window_bar(Engine& engine) {
     }
     // the bar and its controls do not need the font, only the title does
     if (font != nullptr) {
-        const std::wstring title = to_wide(window.getTitle());
+        const std::wstring title = util::str2wstr_utf8(window.getTitle());
         const float available = std::max(0.0f, titleRight - titleLeft);
         size_t titleLength = title.size();
         while (titleLength > 0 &&
@@ -124,13 +112,20 @@ void draw_window_bar(Engine& engine) {
         }
         const float ink = isHovered ? 1.0f : 0.8f;
         batch->setColor(glm::vec4(1.0f, 1.0f, 1.0f, ink));
-        const char* iconName =
-            item.button == DecorationButton::CLOSE
-                ? "gui/cross"
-                : item.button == DecorationButton::MINIMIZE
-                      ? "gui/minimize_w"
-                      : window.isMaximized() ? "gui/restore_w"
-                                             : "gui/maximize_w";
+        const char* iconName = nullptr;
+        switch (item.button) {
+            case DecorationButton::CLOSE:
+                iconName = "gui/cross";
+                break;
+            case DecorationButton::MINIMIZE:
+                iconName = "gui/minimize_w";
+                break;
+            case DecorationButton::MAXIMIZE:
+            default:
+                iconName = window.isMaximized() ? "gui/restore_w"
+                                                : "gui/maximize_w";
+                break;
+        }
         auto icon = engine.requireAssets().getShared<Texture>(iconName);
         if (icon != nullptr) {
             const float iconSize = std::min(

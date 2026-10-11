@@ -1,6 +1,107 @@
 #include "window/detail/FrameOperations.hpp"
 
-#if defined(VOXEL_X11_FRAME)
+#if defined(_WIN32)
+#define NOMINMAX
+#include <windows.h>
+#include <windowsx.h>
+
+#include <GLFW/glfw3.h>
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+
+namespace {
+    WNDPROC original_window_proc = nullptr;
+    frame::Hit (*hit_test_callback)(void*, int, int) = nullptr;
+    void* hit_test_userdata = nullptr;
+    FrameRefresh refresh_callback = nullptr;
+    void* refresh_userdata = nullptr;
+
+    /// @brief Keeps the window style the engine frame relies on
+    ///
+    /// GLFW rewrites the style on every window mode change, and a lost thick
+    /// frame takes the native resize border and the window snapping with it.
+    void apply_engine_style(HWND hwnd) {
+        const LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+        const LONG_PTR wanted =
+            (style | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
+             WS_SYSMENU) &
+            ~WS_CAPTION;
+        if (wanted != style) {
+            SetWindowLongPtr(hwnd, GWL_STYLE, wanted);
+        }
+    }
+
+    LRESULT CALLBACK frame_window_proc(
+        HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
+    ) {
+        switch (message) {
+            case WM_NCCALCSIZE:
+                // the caption is gone, the whole window is the client area
+                if (wparam == TRUE) {
+                    return 0;
+                }
+                break;
+            case WM_NCPAINT:
+                // the frame is not drawn by us
+                return 0;
+            case WM_NCACTIVATE:
+                // and it is not repainted when the window is activated
+                return TRUE;
+            case WM_SIZE: {
+                // Windows runs its own modal loop while a border is dragged
+                // and never sends WM_PAINT there, so WM_SIZE is the only
+                // place to draw a frame from during such a resize.
+                const LRESULT result = CallWindowProc(
+                    original_window_proc, hwnd, message, wparam, lparam
+                );
+                if (refresh_callback != nullptr) {
+                    refresh_callback(refresh_userdata);
+                }
+                return result;
+            }
+            case WM_NCHITTEST: {
+                // the style may have been rewritten since the last setup
+                apply_engine_style(hwnd);
+                if (hit_test_callback == nullptr) {
+                    break;
+                }
+                POINT point {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+                ScreenToClient(hwnd, &point);
+                const frame::Hit hit =
+                    hit_test_callback(hit_test_userdata, point.x, point.y);
+                if (hit.caption) {
+                    return HTCAPTION;
+                }
+                switch (hit.edges) {
+                    case frame::EDGE_TOP | frame::EDGE_LEFT:
+                        return HTTOPLEFT;
+                    case frame::EDGE_TOP:
+                        return HTTOP;
+                    case frame::EDGE_TOP | frame::EDGE_RIGHT:
+                        return HTTOPRIGHT;
+                    case frame::EDGE_RIGHT:
+                        return HTRIGHT;
+                    case frame::EDGE_BOTTOM | frame::EDGE_RIGHT:
+                        return HTBOTTOMRIGHT;
+                    case frame::EDGE_BOTTOM:
+                        return HTBOTTOM;
+                    case frame::EDGE_BOTTOM | frame::EDGE_LEFT:
+                        return HTBOTTOMLEFT;
+                    case frame::EDGE_LEFT:
+                        return HTLEFT;
+                    default:
+                        return HTCLIENT;
+                }
+            }
+        }
+        return CallWindowProc(
+            original_window_proc, hwnd, message, wparam, lparam
+        );
+    }
+}
+
+#elif defined(VOXEL_X11_FRAME)
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <dlfcn.h>
@@ -158,111 +259,6 @@ namespace {
         return true;
     }
 }
-
-#elif defined(_WIN32)
-#define NOMINMAX
-#include <windows.h>
-#include <windowsx.h>
-
-#include <GLFW/glfw3.h>
-
-#define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3native.h>
-
-#include "debug/Logger.hpp"
-
-static debug::Logger frame_logger("window-frame");
-
-namespace {
-    WNDPROC original_window_proc = nullptr;
-    frame::Hit (*hit_test_callback)(void*, int, int) = nullptr;
-    void* hit_test_userdata = nullptr;
-    FrameRefresh refresh_callback = nullptr;
-    void* refresh_userdata = nullptr;
-
-    /// @brief Keeps the window style the engine frame relies on
-    ///
-    /// GLFW rewrites the style on every window mode change, and a lost thick
-    /// frame takes the native resize border and the window snapping with it.
-    void apply_engine_style(HWND hwnd) {
-        const LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
-        const LONG_PTR wanted =
-            (style | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
-             WS_SYSMENU) &
-            ~WS_CAPTION;
-        if (wanted != style) {
-            SetWindowLongPtr(hwnd, GWL_STYLE, wanted);
-        }
-    }
-
-    LRESULT CALLBACK frame_window_proc(
-        HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
-    ) {
-        switch (message) {
-            case WM_NCCALCSIZE:
-                // the caption is gone, the whole window is the client area
-                if (wparam == TRUE) {
-                    return 0;
-                }
-                break;
-            case WM_NCPAINT:
-                // the frame is not drawn by us
-                return 0;
-            case WM_NCACTIVATE:
-                // and it is not repainted when the window is activated
-                return TRUE;
-            case WM_SIZE: {
-                // Windows runs its own modal loop while a border is dragged
-                // and never sends WM_PAINT there, so WM_SIZE is the only
-                // place to draw a frame from during such a resize.
-                const LRESULT result = CallWindowProc(
-                    original_window_proc, hwnd, message, wparam, lparam
-                );
-                if (refresh_callback != nullptr) {
-                    refresh_callback(refresh_userdata);
-                }
-                return result;
-            }
-            case WM_NCHITTEST: {
-                // the style may have been rewritten since the last setup
-                apply_engine_style(hwnd);
-                if (hit_test_callback == nullptr) {
-                    break;
-                }
-                POINT point {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-                ScreenToClient(hwnd, &point);
-                const frame::Hit hit =
-                    hit_test_callback(hit_test_userdata, point.x, point.y);
-                if (hit.caption) {
-                    return HTCAPTION;
-                }
-                switch (hit.edges) {
-                    case frame::EDGE_TOP | frame::EDGE_LEFT:
-                        return HTTOPLEFT;
-                    case frame::EDGE_TOP:
-                        return HTTOP;
-                    case frame::EDGE_TOP | frame::EDGE_RIGHT:
-                        return HTTOPRIGHT;
-                    case frame::EDGE_RIGHT:
-                        return HTRIGHT;
-                    case frame::EDGE_BOTTOM | frame::EDGE_RIGHT:
-                        return HTBOTTOMRIGHT;
-                    case frame::EDGE_BOTTOM:
-                        return HTBOTTOM;
-                    case frame::EDGE_BOTTOM | frame::EDGE_LEFT:
-                        return HTBOTTOMLEFT;
-                    case frame::EDGE_LEFT:
-                        return HTLEFT;
-                    default:
-                        return HTCLIENT;
-                }
-            }
-        }
-        return CallWindowProc(
-            original_window_proc, hwnd, message, wparam, lparam
-        );
-    }
-}
 #endif
 
 bool frame_has_native_operations() {
@@ -321,9 +317,6 @@ void frame_setup_native(
         SetWindowLongPtr(
             hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(frame_window_proc)
         );
-        frame_logger.info() << "window frame: subclass installed";
-    } else {
-        frame_logger.info() << "window frame: subclass was ours";
     }
     SetWindowPos(
         hwnd,
