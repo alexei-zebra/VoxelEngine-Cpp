@@ -36,12 +36,21 @@ namespace {
         HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
     ) {
         switch (message) {
-            case WM_NCCALCSIZE:
-                // the caption is gone, the whole window is the client area
-                if (wparam == TRUE) {
-                    return 0;
+            case WM_NCCALCSIZE: {
+                // The caption is gone and the engine draws the whole frame,
+                // so the client area has to be the window itself. The
+                // rectangle Windows proposes here keeps a strip of the native
+                // frame, and that strip stays black because nothing paints it.
+                if (lparam == 0) {
+                    break;
                 }
-                break;
+                RECT window {};
+                if (!GetWindowRect(hwnd, &window)) {
+                    break;
+                }
+                reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam)->rgrc[0] = window;
+                return 0;
+            }
             case WM_NCPAINT:
                 // the frame is not drawn by us
                 return 0;
@@ -51,12 +60,18 @@ namespace {
             case WM_SIZE: {
                 // Windows runs its own modal loop while a border is dragged
                 // and never sends WM_PAINT there, so WM_SIZE is the only
-                // place to draw a frame from during such a resize.
+                // place to draw a frame from during such a resize. It also
+                // carries the new client size, which the platform may not
+                // have reported to the engine yet.
                 const LRESULT result = CallWindowProc(
                     original_window_proc, hwnd, message, wparam, lparam
                 );
                 if (refresh_callback != nullptr) {
-                    refresh_callback(refresh_userdata);
+                    refresh_callback(
+                        refresh_userdata,
+                        static_cast<int>(LOWORD(lparam)),
+                        static_cast<int>(HIWORD(lparam))
+                    );
                 }
                 return result;
             }

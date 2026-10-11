@@ -22,7 +22,9 @@ bool frame_start_move(GLFWwindow* window);
 bool frame_start_resize(GLFWwindow* window, int edges);
 
 /// @brief Called when the windowing system wants the content redrawn
-using FrameRefresh = void (*)(void*);
+/// @param width new client width, 0 when the system does not know it
+/// @param height new client height, 0 when the system does not know it
+using FrameRefresh = void (*)(void*, int width, int height);
 
 /// @brief Hide the caption of the native frame, keeping the rest of it
 /// @param hitTest tells what the pointer is over

@@ -405,8 +405,17 @@ public:
         inRefreshCallback = false;
     }
 
-    static void frame_refresh_thunk(void* userdata) {
-        static_cast<GLFWWindow*>(userdata)->drawRefreshFrame();
+    static void frame_refresh_thunk(void* userdata, int width, int height) {
+        auto* self = static_cast<GLFWWindow*>(userdata);
+        // The platform reports the new size from its own message loop, where
+        // GLFW has not updated the window yet: without this the frame is
+        // drawn for the previous size and leaves an unpainted strip behind.
+        if (width > 0 && height > 0 &&
+            self->getSize() != glm::ivec2(width, height)) {
+            self->setSize(width, height);
+            self->resetScissor();
+        }
+        self->drawRefreshFrame();
     }
 
     /// @brief Set while a frame is drawn from the refresh callback
